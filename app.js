@@ -10,6 +10,8 @@ const BRONNEN = ['Vinted', 'Kringloop', 'Marktplaats', 'Rommelmarkt', 'Winkel'];
 const MELDGRENS_VERKOPEN = 30;
 const MELDGRENS_OMZET = 200000;
 const GRAFIEK_HOOGTE = 130;
+const THEMAS = { auto: 'Automatisch', light: 'Licht', dark: 'Donker' };
+const THEMA_KLEUR = { light: '#f6f3fb', dark: '#120d1d' };
 
 const staat = {
   tab: 'artikelen',
@@ -27,6 +29,7 @@ const view = document.getElementById('view');
 const sheet = document.getElementById('sheet');
 const toastEl = document.getElementById('toast');
 const backupBestand = document.getElementById('backup-bestand');
+const topbalk = document.getElementById('topbalk');
 const minderBeweging = matchMedia('(prefers-reduced-motion: reduce)');
 
 const esc = (t) => String(t ?? '').replace(/[&<>"']/g, (c) => (
@@ -102,9 +105,53 @@ function confetti() {
   requestAnimationFrame(teken);
 }
 
+function huidigThema() {
+  return document.documentElement.dataset.theme ?? 'auto';
+}
+
+function zetThemaKleur(thema) {
+  document.querySelectorAll('meta[name="theme-color"]').forEach((meta) => {
+    const eigen = meta.media.includes('dark') ? 'dark' : 'light';
+    meta.content = THEMA_KLEUR[thema === 'auto' ? eigen : thema];
+  });
+}
+
+function kiesThema(thema) {
+  if (thema === 'auto') delete document.documentElement.dataset.theme;
+  else document.documentElement.dataset.theme = thema;
+  zetThemaKleur(thema);
+  try {
+    if (thema === 'auto') localStorage.removeItem('winstje-thema');
+    else localStorage.setItem('winstje-thema', thema);
+  } catch {
+    // Dan geldt de keuze alleen tot de app wordt gesloten.
+  }
+}
+
 /* Schermen */
 
+function renderTopbalk() {
+  topbalk.hidden = !isGekoppeld();
+  if (topbalk.hidden) return;
+  if (staat.account) {
+    const email = staat.account.email ?? '';
+    const status = staat.syncStatus === 'fout' ? 'Nog niet alles is online bewaard' : 'Ingelogd';
+    topbalk.innerHTML = `
+      <button class="gebruiker" data-tab="meer" aria-label="Account: ${esc(email)}">
+        <span class="gebruiker-icoon" aria-hidden="true">${esc(email.charAt(0).toUpperCase())}</span>
+        <span class="gebruiker-tekst"><strong>${esc(email)}</strong><small>${status}</small></span>
+      </button>`;
+  } else {
+    topbalk.innerHTML = `
+      <button class="gebruiker" data-actie="login">
+        <span class="gebruiker-icoon uit" aria-hidden="true">?</span>
+        <span class="gebruiker-tekst"><strong>Niet ingelogd</strong><small>Tik om in te loggen</small></span>
+      </button>`;
+  }
+}
+
 function render() {
+  renderTopbalk();
   document.querySelectorAll('.nav-knop').forEach((knop) => {
     if (knop.dataset.tab === staat.tab) knop.setAttribute('aria-current', 'page');
     else knop.removeAttribute('aria-current');
@@ -296,6 +343,15 @@ function renderMeer() {
     <section class="scherm">
       <h1 class="titel">Meer</h1>
       ${accountHtml()}
+      <div class="instelling">
+        <strong>Weergave</strong>
+        <div class="seg" role="radiogroup" aria-label="Weergave">
+          <span class="seg-duim"></span>
+          ${Object.entries(THEMAS).map(([sleutel, naam]) => `
+            <input type="radio" id="thema-${sleutel}" name="thema" value="${sleutel}" ${huidigThema() === sleutel ? 'checked' : ''}>
+            <label for="thema-${sleutel}">${naam}</label>`).join('')}
+        </div>
+      </div>
       <div class="acties">
         ${isGekoppeld() && !staat.account ? `
           <button class="actie" data-actie="login"><span aria-hidden="true">☁️</span><span><strong>Inloggen</strong><small>Bewaar alles veilig online</small></span></button>` : ''}
@@ -446,11 +502,13 @@ async function synchroniseerNu() {
   try {
     const binnen = await syncNu();
     staat.syncStatus = 'ok';
+    renderTopbalk();
     if (binnen) staat.artikelen = await alleArtikelen();
     // Niet verversen terwijl er getypt wordt, anders verdwijnt de invoer.
     if (!sheet.open && document.activeElement?.id !== 'zoek' && (binnen || staat.tab === 'meer')) render();
   } catch {
     staat.syncStatus = 'fout';
+    renderTopbalk();
     if (staat.tab === 'meer' && !sheet.open) render();
   }
 }
@@ -683,6 +741,10 @@ view.addEventListener('input', (e) => {
   }
 });
 
+view.addEventListener('change', (e) => {
+  if (e.target.name === 'thema') kiesThema(e.target.value);
+});
+
 sheet.addEventListener('click', (e) => {
   if (e.target === sheet) sluitFormulier();
 });
@@ -742,10 +804,12 @@ document.addEventListener('visibilitychange', () => {
 });
 
 async function start() {
+  zetThemaKleur(huidigThema());
   staat.artikelen = await alleArtikelen();
   render();
   staat.account = await huidigAccount();
   if (staat.tab === 'meer') render();
+  else renderTopbalk();
   planSync();
   navigator.storage?.persist?.();
   // Zonder service worker werkt de app gewoon, alleen niet offline.
