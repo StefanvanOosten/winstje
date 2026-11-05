@@ -1,6 +1,6 @@
-// Opslag op het toestel (IndexedDB). Alles wat de app met opslag doet loopt via
-// deze vier functies, zodat dit bestand later door een online database te
-// vervangen is zonder dat de rest van de app verandert.
+// Opslag op het toestel (IndexedDB). Artikelen zonder `vuil: false` moeten nog
+// naar de online database. Verwijderde artikelen blijven als markering staan,
+// zodat de verwijdering ook online doorkomt.
 
 const DB_NAAM = 'winstje';
 const STORE = 'artikelen';
@@ -28,13 +28,30 @@ async function transactie(modus, werk) {
   });
 }
 
-export const alleArtikelen = () => transactie('readonly', (s) => s.getAll());
+const nu = () => new Date().toISOString();
 
-export const bewaarArtikel = (artikel) => transactie('readwrite', (s) => s.put(artikel));
+const markering = (id) => ({ id, verwijderd: true, gewijzigd: nu(), vuil: true });
 
-export const verwijderArtikel = (id) => transactie('readwrite', (s) => s.delete(id));
+/** Alles wat er op het toestel staat, inclusief verwijdermarkeringen. */
+export const ruweArtikelen = () => transactie('readonly', (s) => s.getAll());
 
-export const vervangAlles = (artikelen) => transactie('readwrite', (s) => {
-  s.clear();
+export const schrijfRuw = (artikelen) => transactie('readwrite', (s) => {
   artikelen.forEach((a) => s.put(a));
 });
+
+export const alleArtikelen = async () => (await ruweArtikelen()).filter((a) => !a.verwijderd);
+
+export const bewaarArtikel = (artikel) => transactie('readwrite', (s) => s.put({
+  ...artikel, gewijzigd: nu(), vuil: true,
+}));
+
+export const verwijderArtikel = (id) => transactie('readwrite', (s) => s.put(markering(id)));
+
+export async function vervangAlles(artikelen) {
+  const nieuw = new Set(artikelen.map((a) => a.id));
+  const weg = (await ruweArtikelen()).filter((a) => !nieuw.has(a.id) && !a.verwijderd);
+  await transactie('readwrite', (s) => {
+    artikelen.forEach((a) => s.put({ ...a, verwijderd: false, gewijzigd: nu(), vuil: true }));
+    weg.forEach((a) => s.put(markering(a.id)));
+  });
+}

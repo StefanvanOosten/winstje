@@ -420,6 +420,8 @@ th { color: var(--tekst-2); font-weight: 500; }
   transition: transform .18s var(--veer);
 }
 .knop:active { transform: scale(.97); }
+.knop:disabled, .knop-tweede:disabled { opacity: .55; }
+.knop-tweede { flex: 1; padding: 14px; border-radius: 16px; background: var(--vlak-2); color: var(--tekst); font-weight: 700; }
 .knop-weg { flex: none; padding: 14px 16px; border-radius: 16px; background: var(--vlak-2); color: var(--min); font-weight: 700; }
 
 /* Melding en confetti */

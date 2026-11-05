@@ -1,4 +1,5 @@
 import { alleArtikelen, bewaarArtikel, verwijderArtikel, vervangAlles } from './db.js';
+import { isGekoppeld, huidigAccount, inloggen, registreren, uitloggen, syncNu, foutTekst } from './account.js';
 import {
   STATUSSEN, parseEuro, formatEuro, euroInvoer, winst, vandaagIso, dagenTussen, formatDatum,
   beschikbareJaren, jaarOverzicht, blijvenLiggen, naarCsv,
@@ -18,6 +19,8 @@ const staat = {
   artikelen: [],
   installatie: null,
   concept: null,
+  account: null,
+  syncStatus: null,
 };
 
 const view = document.getElementById('view');
@@ -275,17 +278,35 @@ function renderOverzicht() {
   telOp(document.getElementById('hero-bedrag'), o.winst);
 }
 
+function accountHtml() {
+  if (staat.account) {
+    const status = staat.syncStatus === 'fout'
+      ? 'Nog niet alles is online bewaard. Dat gebeurt vanzelf zodra het weer lukt.'
+      : 'Je gegevens worden automatisch online bewaard.';
+    return `
+      <p class="melding"><strong>${esc(staat.account.email)}</strong><br>${status}</p>`;
+  }
+  return `
+    <p class="melding"><strong>Let op:</strong> je gegevens staan alleen op dit toestel.
+    ${isGekoppeld() ? 'Log in om ze online te bewaren.' : 'Maak regelmatig een back-up, zodat je niets kwijtraakt.'}</p>`;
+}
+
 function renderMeer() {
   view.innerHTML = `
     <section class="scherm">
       <h1 class="titel">Meer</h1>
-      <p class="melding"><strong>Let op:</strong> je gegevens staan alleen op dit toestel. Maak regelmatig een back-up, zodat je niets kwijtraakt.</p>
+      ${accountHtml()}
       <div class="acties">
+        ${isGekoppeld() && !staat.account ? `
+          <button class="actie" data-actie="login"><span aria-hidden="true">☁️</span><span><strong>Inloggen</strong><small>Bewaar alles veilig online</small></span></button>` : ''}
         ${staat.installatie ? `
           <button class="actie" data-actie="installeer"><span aria-hidden="true">📲</span><span><strong>Installeer de app</strong><small>Zet Winstje tussen je andere apps</small></span></button>` : ''}
         <button class="actie" data-actie="csv"><span aria-hidden="true">📊</span><span><strong>Exporteren naar Excel</strong><small>Alle artikelen als CSV-bestand</small></span></button>
         <button class="actie" data-actie="backup"><span aria-hidden="true">💾</span><span><strong>Back-up maken</strong><small>Alles inclusief foto's</small></span></button>
         <button class="actie" data-actie="herstel"><span aria-hidden="true">♻️</span><span><strong>Back-up terugzetten</strong><small>Vervangt alles wat nu in de app staat</small></span></button>
+        ${staat.account ? `
+          <button class="actie" data-actie="sync"><span aria-hidden="true">🔄</span><span><strong>Nu synchroniseren</strong><small>Haal de laatste wijzigingen op</small></span></button>
+          <button class="actie" data-actie="uitloggen"><span aria-hidden="true">👋</span><span><strong>Uitloggen</strong><small>Je gegevens blijven op dit toestel staan</small></span></button>` : ''}
       </div>
       <p class="klein" style="margin-top:18px;text-align:center">${staat.artikelen.length} artikelen opgeslagen</p>
     </section>`;
@@ -361,6 +382,82 @@ function openFormulier(artikel) {
   sheet.scrollTop = 0;
   history.pushState({ sheet: true }, '');
   werkLiveWinstBij();
+}
+
+function openLogin() {
+  sheet.innerHTML = `
+    <div class="sheet-greep"></div>
+    <div class="sheet-kop">
+      <h2>Inloggen</h2>
+      <button class="sluit" type="button" data-actie="sluit" aria-label="Sluiten">✕</button>
+    </div>
+    <form id="login" novalidate>
+      <div class="form">
+        <p class="klein">Met een account staan je gegevens veilig online en kun je ze terughalen op een nieuwe telefoon.</p>
+        <label class="veld"><span>E-mailadres</span>
+          <input name="email" type="email" autocomplete="username" inputmode="email">
+        </label>
+        <label class="veld"><span>Wachtwoord</span>
+          <input name="wachtwoord" type="password" autocomplete="current-password">
+        </label>
+        <small class="fout" id="login-fout" role="alert" hidden></small>
+      </div>
+      <div class="sheet-voet">
+        <button class="knop-tweede" type="button" data-actie="registreer">Account maken</button>
+        <button class="knop" type="submit">Inloggen</button>
+      </div>
+    </form>`;
+  sheet.showModal();
+  history.pushState({ sheet: true }, '');
+}
+
+async function verwerkLogin(actie) {
+  const form = document.getElementById('login');
+  const fout = document.getElementById('login-fout');
+  const email = form.email.value.trim();
+  const wachtwoord = form.wachtwoord.value;
+  fout.hidden = true;
+  if (!email || !wachtwoord) {
+    fout.textContent = 'Vul je e-mailadres en wachtwoord in';
+    fout.hidden = false;
+    return;
+  }
+  form.querySelectorAll('button').forEach((k) => { k.disabled = true; });
+  try {
+    const account = await actie(email, wachtwoord);
+    sluitFormulier();
+    if (account) {
+      staat.account = account;
+      toon('Ingelogd');
+      await synchroniseerNu();
+    } else {
+      toon('Bevestig je e-mailadres via de mail');
+    }
+    render();
+  } catch (e) {
+    fout.textContent = foutTekst(e);
+    fout.hidden = false;
+    form.querySelectorAll('button').forEach((k) => { k.disabled = false; });
+  }
+}
+
+async function synchroniseerNu() {
+  if (!staat.account) return;
+  try {
+    const binnen = await syncNu();
+    staat.syncStatus = 'ok';
+    if (binnen) staat.artikelen = await alleArtikelen();
+    // Niet verversen terwijl er getypt wordt, anders verdwijnt de invoer.
+    if (!sheet.open && document.activeElement?.id !== 'zoek' && (binnen || staat.tab === 'meer')) render();
+  } catch {
+    staat.syncStatus = 'fout';
+    if (staat.tab === 'meer' && !sheet.open) render();
+  }
+}
+
+function planSync() {
+  clearTimeout(planSync.timer);
+  planSync.timer = setTimeout(synchroniseerNu, 800);
 }
 
 function sluitFormulier() {
@@ -447,6 +544,7 @@ async function bewaarFormulier(form) {
   staat.artikelen = await alleArtikelen();
   sluitFormulier();
   render();
+  planSync();
 
   if (verkocht && bestaand?.status !== 'verkocht') {
     const w = winst(artikel);
@@ -494,6 +592,7 @@ async function zetBackupTerug(bestand) {
   await vervangAlles(artikelen);
   staat.artikelen = await alleArtikelen();
   render();
+  planSync();
   toon('Back-up teruggezet');
 }
 
@@ -509,7 +608,27 @@ const acties = {
     staat.artikelen = await alleArtikelen();
     sluitFormulier();
     render();
+    planSync();
     toon('Verwijderd');
+  },
+  login: openLogin,
+  registreer: () => verwerkLogin(registreren),
+  async sync() {
+    await synchroniseerNu();
+    toon(staat.syncStatus === 'ok' ? 'Alles is bijgewerkt' : 'Dat lukte niet, probeer het later nog eens');
+  },
+  async uitloggen() {
+    if (!confirm('Uitloggen? Je gegevens blijven op dit toestel staan.')) return;
+    await synchroniseerNu();
+    try {
+      await uitloggen();
+    } catch {
+      toon('Uitloggen lukte niet');
+      return;
+    }
+    staat.account = null;
+    staat.syncStatus = null;
+    render();
   },
   csv: () => download(`winstje-${vandaagIso()}.csv`, naarCsv(staat.artikelen), 'text/csv;charset=utf-8'),
   backup: () => download(`winstje-backup-${vandaagIso()}.json`, JSON.stringify(staat.artikelen), 'application/json'),
@@ -595,7 +714,8 @@ sheet.addEventListener('change', async (e) => {
 
 sheet.addEventListener('submit', (e) => {
   e.preventDefault();
-  bewaarFormulier(e.target);
+  if (e.target.id === 'login') verwerkLogin(inloggen);
+  else bewaarFormulier(e.target);
 });
 
 // De terugknop van Android sluit het formulier in plaats van de app.
@@ -615,9 +735,18 @@ addEventListener('beforeinstallprompt', (e) => {
   if (staat.tab === 'meer') render();
 });
 
+addEventListener('online', planSync);
+
+document.addEventListener('visibilitychange', () => {
+  if (document.visibilityState === 'visible') planSync();
+});
+
 async function start() {
   staat.artikelen = await alleArtikelen();
   render();
+  staat.account = await huidigAccount();
+  if (staat.tab === 'meer') render();
+  planSync();
   navigator.storage?.persist?.();
   // Zonder service worker werkt de app gewoon, alleen niet offline.
   navigator.serviceWorker?.register('sw.js').catch(() => {});

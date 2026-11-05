@@ -22,7 +22,11 @@ npm test
 |---|---|
 | `app.js` | Schermen en bediening |
 | `logic.js` | Berekeningen en CSV-export, zonder scherm of opslag |
-| `db.js` | Opslag op het toestel; vervang dit bestand om over te stappen op een online database |
+| `db.js` | Opslag op het toestel |
+| `sync.js` | Synchronisatie tussen toestel en online database |
+| `account.js` | Inloggen bij Supabase |
+| `config.js` | Adres en publieke sleutel van Supabase |
+| `supabase/schema.sql` | Database-script voor de SQL Editor van Supabase |
 | `sw.js` | Offline gebruik; nieuwe versies komen vanzelf door |
 | `tools/make-icons.mjs` | Tekent de app-iconen |
 
