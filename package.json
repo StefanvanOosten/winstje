@@ -1,0 +1,10 @@
+{
+  "name": "winstje",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "test": "node --test",
+    "start": "python -m http.server 8123",
+    "icons": "node tools/make-icons.mjs"
+  }
+}

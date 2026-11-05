@@ -1,0 +1,44 @@
+<!doctype html>
+<html lang="nl">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <title>Winstje</title>
+  <meta name="description" content="Houd bij wat je inkoopt, verkoopt en verdient.">
+  <meta name="theme-color" content="#f6f3fb" media="(prefers-color-scheme: light)">
+  <meta name="theme-color" content="#120d1d" media="(prefers-color-scheme: dark)">
+  <link rel="manifest" href="manifest.webmanifest">
+  <link rel="icon" href="icons/icon-192.png">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,600;12..96,800&family=DM+Sans:opsz,wght@9..40,400;9..40,500;9..40,700&display=swap">
+  <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+  <main id="view"></main>
+
+  <nav class="nav" aria-label="Hoofdmenu">
+    <button class="nav-knop" data-tab="artikelen">
+      <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M20.6 13.4 13.4 20.6a2 2 0 0 1-2.8 0L3 13V3h10l7.6 7.6a2 2 0 0 1 0 2.8Z"/><circle cx="7.5" cy="7.5" r="1.2"/></svg>
+      <span>Artikelen</span>
+    </button>
+    <button class="fab" data-actie="nieuw" aria-label="Artikel toevoegen">
+      <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 5v14M5 12h14"/></svg>
+    </button>
+    <button class="nav-knop" data-tab="overzicht">
+      <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 20V10M12 20V4M20 20v-7"/></svg>
+      <span>Overzicht</span>
+    </button>
+    <button class="nav-knop" data-tab="meer">
+      <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="5" cy="12" r="1.4"/><circle cx="12" cy="12" r="1.4"/><circle cx="19" cy="12" r="1.4"/></svg>
+      <span>Meer</span>
+    </button>
+  </nav>
+
+  <dialog id="sheet" class="sheet" aria-label="Artikel"></dialog>
+  <div id="toast" class="toast" role="status" aria-live="polite"></div>
+  <input id="backup-bestand" type="file" accept="application/json,.json" hidden>
+
+  <script type="module" src="app.js"></script>
+</body>
+</html>
