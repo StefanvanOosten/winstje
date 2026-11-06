@@ -1,6 +1,7 @@
 // Opslag op het toestel (IndexedDB). Artikelen zonder `vuil: false` moeten nog
 // naar de online database. Verwijderde artikelen blijven als markering staan,
-// zodat de verwijdering ook online doorkomt.
+// zodat de verwijdering ook online doorkomt. Extra kosten (`soort: 'kosten'`) staan
+// in dezelfde opslag, zodat ze zonder aparte tabel meesynchroniseren.
 
 const DB_NAAM = 'winstje';
 const STORE = 'artikelen';
@@ -39,7 +40,11 @@ export const schrijfRuw = (artikelen) => transactie('readwrite', (s) => {
   artikelen.forEach((a) => s.put(a));
 });
 
-export const alleArtikelen = async () => (await ruweArtikelen()).filter((a) => !a.verwijderd);
+const actueel = async () => (await ruweArtikelen()).filter((a) => !a.verwijderd);
+
+export const alleArtikelen = async () => (await actueel()).filter((a) => a.soort !== 'kosten');
+
+export const alleKosten = async () => (await actueel()).filter((a) => a.soort === 'kosten');
 
 export const bewaarArtikel = (artikel) => transactie('readwrite', (s) => s.put({
   ...artikel, gewijzigd: nu(), vuil: true,

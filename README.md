@@ -30,4 +30,4 @@ npm test
 | `sw.js` | Offline gebruik; nieuwe versies komen vanzelf door |
 | `tools/make-icons.mjs` | Tekent de app-iconen |
 
-Bedragen worden overal als hele centen opgeslagen.
+Bedragen worden overal als hele centen opgeslagen. Extra kosten, zoals boosten, staan als regels met `soort: 'kosten'` in dezelfde opslag en tabel als de artikelen.

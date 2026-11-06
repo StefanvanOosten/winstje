@@ -74,6 +74,36 @@ test('jaarOverzicht: voorraad is de stand van nu, ongeacht het jaar', () => {
   assert.equal(jaarOverzicht(data, 2025).winst, 600);
 });
 
+test('jaarOverzicht haalt extra kosten van de winst af in de juiste maand', () => {
+  const zonder = jaarOverzicht(data, 2026);
+  const kosten = [
+    { soort: 'kosten', naam: 'Boosten', bedrag: 250, datum: '2026-03-10' },
+    { soort: 'kosten', naam: 'Dozen', bedrag: 100, datum: '2026-03-20' },
+    { soort: 'kosten', naam: 'Vorig jaar', bedrag: 999, datum: '2025-03-20' },
+  ];
+  const o = jaarOverzicht(data, 2026, kosten);
+  assert.equal(o.extraKosten, 350);
+  assert.equal(o.winst, zonder.winst - 350);
+  assert.equal(o.maanden[2].winst, zonder.maanden[2].winst - 350);
+  assert.equal(o.maanden[2].extraKosten, 350);
+  assert.equal(o.omzet, zonder.omzet);
+  assert.equal(o.verkocht, zonder.verkocht);
+});
+
+test('beschikbareJaren telt ook jaren met alleen extra kosten', () => {
+  assert.deepEqual(beschikbareJaren([], 2026, [{ datum: '2023-05-01', bedrag: 100 }]), [2026, 2023]);
+});
+
+test('naarCsv zet extra kosten erbij met negatieve winst', () => {
+  const csv = naarCsv([], [{ naam: '=Dozen', bedrag: 350, datum: '2026-03-10' }]);
+  const regel = csv.split('\r\n')[1].split(';');
+  assert.equal(regel[0], "'=Dozen");
+  assert.equal(regel[4], 'Extra kosten');
+  assert.equal(regel[8], '2026-03-10');
+  assert.equal(regel[10], '3,50');
+  assert.equal(regel[11], '-3,50');
+});
+
 test('beschikbareJaren bevat alle jaren en altijd het huidige', () => {
   assert.deepEqual(beschikbareJaren(data, 2026), [2026, 2025, 2024]);
   assert.deepEqual(beschikbareJaren([], 2026), [2026]);
@@ -82,6 +112,11 @@ test('beschikbareJaren bevat alle jaren en altijd het huidige', () => {
 test('blijvenLiggen slaat verkochte en nieuwe artikelen over', () => {
   const lijst = blijvenLiggen(data, '2026-11-05');
   assert.deepEqual(lijst.map((a) => a.id), [4]);
+});
+
+test('blijvenLiggen slaat artikelen over die nog onderweg zijn', () => {
+  const onderweg = { id: 6, status: 'gekocht', inkoopdatum: '2026-01-01', inkoopprijs: 100 };
+  assert.deepEqual(blijvenLiggen([onderweg], '2026-11-05'), []);
 });
 
 test('naarCsv is geschikt voor Nederlandse Excel', () => {

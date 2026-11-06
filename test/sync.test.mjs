@@ -153,3 +153,15 @@ test('wijzigen tijdens het versturen gaat niet verloren', async () => {
   assert.equal(toestel.opslag.get('a').vuil, true);
   assert.equal(toestel.opslag.get('a').naam, 'Jas 2');
 });
+
+test('extra kosten gaan mee naar een ander toestel', async () => {
+  const server = nepServer();
+  const kosten = { id: 'k1', soort: 'kosten', naam: 'Boosten', bedrag: 250, datum: '2026-03-10', gewijzigd: '2026-03-10T10:00:00.000Z' };
+  await synchroniseer(server, nepToestel([kosten]), null);
+
+  const ander = nepToestel();
+  await synchroniseer(server, ander, null);
+  const [binnen] = await ander.lees();
+  assert.equal(binnen.soort, 'kosten');
+  assert.equal(binnen.bedrag, 250);
+});

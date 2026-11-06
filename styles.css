@@ -155,13 +155,19 @@ h1, h2, h3, p { margin: 0; }
 /* Zoeken en filters */
 .zoek {
   width: 100%;
-  margin-top: 18px;
   padding: 13px 16px;
   border: 1px solid var(--rand);
   border-radius: 16px;
   background: var(--vlak);
 }
 .zoek::placeholder { color: var(--tekst-2); }
+
+.zoekrij { display: flex; gap: 8px; align-items: stretch; margin-top: 18px; }
+.zoekrij .zoek { flex: 1; min-width: 0; }
+.wissel { flex: none; display: flex; padding: 3px; border-radius: 16px; background: var(--vlak-2); }
+.wissel button { display: grid; place-items: center; width: 40px; border-radius: 13px; color: var(--tekst-2); }
+.wissel button[aria-pressed='true'] { background: var(--accent); color: var(--vlak); }
+.wissel svg { width: 20px; height: 20px; fill: none; stroke: currentColor; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; }
 
 .chips { display: flex; gap: 8px; margin: 12px -16px 14px; padding: 2px 16px; overflow-x: auto; scrollbar-width: none; }
 .chips::-webkit-scrollbar { display: none; }
@@ -214,6 +220,35 @@ h1, h2, h3, p { margin: 0; }
 /* Absoluut, anders rekt een staande foto de rij op en valt de onderkant weg. */
 .thumb img { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; }
 
+.lijst.raster { grid-template-columns: repeat(auto-fill, minmax(100px, 1fr)); gap: 6px; }
+.tegel-foto {
+  position: relative;
+  aspect-ratio: 1;
+  overflow: hidden;
+  border-radius: 14px;
+  background: linear-gradient(135deg, var(--vlak-2), var(--rand));
+  animation: binnen .4s var(--veer) both;
+  animation-delay: calc(min(var(--i, 0), 10) * 30ms);
+  transition: transform .18s var(--veer);
+}
+.tegel-foto:active { transform: scale(.96); }
+.tegel-foto img { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; }
+.tegel-letter { position: absolute; inset: 0 0 22% 0; display: grid; place-items: center; color: var(--accent); font: 800 28px var(--kop); }
+/* Vaste kleuren: de tekst staat altijd op een donker verloop over de foto. */
+.tegel-info {
+  position: absolute;
+  inset: auto 0 0 0;
+  display: block;
+  padding: 14px 8px 6px;
+  text-align: left;
+  color: #fff;
+  font-size: 12px;
+  line-height: 1.25;
+  background: linear-gradient(rgb(10 6 20 / 0), rgb(10 6 20 / .66) 34%, rgb(10 6 20 / .9));
+}
+.tegel-info span { display: block; overflow: hidden; white-space: nowrap; text-overflow: ellipsis; }
+.tegel-info strong { display: block; font-variant-numeric: tabular-nums; }
+
 .kaart-tekst { flex: 1; min-width: 0; }
 .kaart-tekst strong { display: block; font-weight: 700; overflow: hidden; white-space: nowrap; text-overflow: ellipsis; }
 .kaart-tekst small { display: block; color: var(--tekst-2); font-size: 13px; overflow: hidden; white-space: nowrap; text-overflow: ellipsis; }
@@ -236,6 +271,16 @@ h1, h2, h3, p { margin: 0; }
 .tegel small { color: var(--tekst-2); font-size: 13px; }
 
 .paneel { padding: 16px; border-radius: 22px; background: var(--vlak); box-shadow: var(--schaduw); }
+
+.kosten-totaal { display: flex; justify-content: space-between; align-items: baseline; gap: 12px; margin-bottom: 4px; }
+.kosten-totaal strong { font: 600 21px/1.2 var(--kop); font-variant-numeric: tabular-nums; }
+.kosten-lijst { margin-top: 10px; }
+.kosten-regel { display: flex; justify-content: space-between; align-items: center; gap: 12px; width: 100%; padding: 10px 0; text-align: left; border-top: 1px solid var(--rand); }
+.kosten-regel > span:first-child { min-width: 0; }
+.kosten-regel strong { display: block; overflow: hidden; white-space: nowrap; text-overflow: ellipsis; }
+.kosten-regel small { color: var(--tekst-2); font-size: 13px; }
+.kosten-bedrag { flex: none; font-variant-numeric: tabular-nums; font-weight: 700; }
+.kosten-knop { display: block; width: 100%; margin-top: 12px; }
 
 .grafiek-info { min-height: 22px; margin-bottom: 8px; color: var(--tekst-2); font-size: 14px; }
 .grafiek-info strong { color: var(--tekst); }
@@ -414,7 +459,9 @@ th { color: var(--tekst-2); font-weight: 500; }
 .foto-knop img { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: contain; }
 .foto-knop input { position: absolute; opacity: 0; pointer-events: none; }
 
-.seg { position: relative; display: grid; grid-template-columns: repeat(3, 1fr); padding: 4px; border-radius: 16px; background: var(--vlak-2); }
+.seg { --delen: 3; position: relative; display: grid; grid-template-columns: repeat(var(--delen), minmax(0, 1fr)); padding: 4px; border-radius: 16px; background: var(--vlak-2); }
+.seg-vier { --delen: 4; }
+.seg-vier label { font-size: 13px; letter-spacing: -.01em; }
 .seg input { position: absolute; opacity: 0; }
 .seg label { position: relative; z-index: 1; padding: 9px 2px; text-align: center; font-size: 14px; font-weight: 500; color: var(--tekst-2); cursor: pointer; transition: color .2s; }
 .seg input:checked + label { color: var(--tekst); font-weight: 700; }
@@ -424,7 +471,7 @@ th { color: var(--tekst-2); font-weight: 500; }
   top: 4px;
   bottom: 4px;
   left: 4px;
-  width: calc((100% - 8px) / 3);
+  width: calc((100% - 8px) / var(--delen));
   border-radius: 12px;
   background: var(--vlak);
   box-shadow: 0 2px 8px rgb(30 10 60 / .16);
@@ -432,6 +479,7 @@ th { color: var(--tekst-2); font-weight: 500; }
 }
 .seg:has(input:nth-of-type(2):checked) .seg-duim { transform: translateX(100%); }
 .seg:has(input:nth-of-type(3):checked) .seg-duim { transform: translateX(200%); }
+.seg:has(input:nth-of-type(4):checked) .seg-duim { transform: translateX(300%); }
 
 .verkoop-velden { display: grid; gap: 13px; animation: binnen .3s var(--veer) both; }
 

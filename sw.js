@@ -1,6 +1,6 @@
 // Haalt eerst de nieuwste versie op, zodat updates direct doorkomen,
 // en valt zonder internet terug op de laatst bewaarde versie.
-const CACHE = 'winstje-v3';
+const CACHE = 'winstje-v4';
 const BESTANDEN = [
   './', 'index.html', 'styles.css', 'app.js', 'logic.js', 'db.js', 'sync.js', 'account.js', 'config.js', 'manifest.webmanifest',
   'icons/icon-192.png', 'icons/icon-512.png', 'icons/icon-maskable-512.png',

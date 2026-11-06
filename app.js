@@ -1,4 +1,4 @@
-import { alleArtikelen, bewaarArtikel, verwijderArtikel, vervangAlles } from './db.js';
+import { alleArtikelen, alleKosten, bewaarArtikel, verwijderArtikel, vervangAlles } from './db.js';
 import { isGekoppeld, huidigAccount, inloggen, registreren, uitloggen, syncNu, foutTekst } from './account.js';
 import {
   STATUSSEN, parseEuro, formatEuro, euroInvoer, winst, vandaagIso, dagenTussen, formatDatum,
@@ -12,6 +12,15 @@ const MELDGRENS_OMZET = 200000;
 const GRAFIEK_HOOGTE = 130;
 const THEMAS = { auto: 'Automatisch', light: 'Licht', dark: 'Donker' };
 const THEMA_KLEUR = { light: '#f6f3fb', dark: '#120d1d' };
+const KOSTEN_SUGGESTIES = ['Boosten', 'Verzendmateriaal'];
+
+function leesWeergave() {
+  try {
+    return localStorage.getItem('winstje-lijstweergave') === 'raster' ? 'raster' : 'lijst';
+  } catch {
+    return 'lijst';
+  }
+}
 
 const staat = {
   tab: 'artikelen',
@@ -19,6 +28,8 @@ const staat = {
   zoek: '',
   jaar: new Date().getFullYear(),
   artikelen: [],
+  kosten: [],
+  weergave: leesWeergave(),
   installatie: null,
   concept: null,
   account: null,
@@ -35,6 +46,10 @@ const minderBeweging = matchMedia('(prefers-reduced-motion: reduce)');
 const esc = (t) => String(t ?? '').replace(/[&<>"']/g, (c) => (
   { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]
 ));
+
+async function laadGegevens() {
+  [staat.artikelen, staat.kosten] = await Promise.all([alleArtikelen(), alleKosten()]);
+}
 
 const klasseBedrag = (centen) => (centen < 0 ? 'min' : 'plus');
 const metTeken = (centen) => `${centen > 0 ? '+' : ''}${formatEuro(centen)}`;
@@ -161,7 +176,7 @@ function render() {
 
 function renderArtikelen() {
   const jaar = new Date().getFullYear();
-  const o = jaarOverzicht(staat.artikelen, jaar);
+  const o = jaarOverzicht(staat.artikelen, jaar, staat.kosten);
   const filters = { alles: 'Alles', ...STATUSSEN };
 
   view.innerHTML = `
@@ -175,7 +190,17 @@ function renderArtikelen() {
           <div><strong>${formatEuro(o.voorraadWaarde)}</strong><small>waarde</small></div>
         </div>
       </div>
-      <input class="zoek" id="zoek" type="search" placeholder="Zoek op naam, merk of categorie" aria-label="Zoeken" value="${esc(staat.zoek)}">
+      <div class="zoekrij">
+        <input class="zoek" id="zoek" type="search" placeholder="Zoek op naam of merk" aria-label="Zoeken op naam, merk of categorie" value="${esc(staat.zoek)}">
+        <div class="wissel" role="group" aria-label="Weergave van de artikelen">
+          <button data-weergave="lijst" aria-label="Lijst" aria-pressed="${staat.weergave === 'lijst'}">
+            <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 6h16M4 12h16M4 18h16"/></svg>
+          </button>
+          <button data-weergave="raster" aria-label="Raster" aria-pressed="${staat.weergave === 'raster'}">
+            <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 4h6v6H4zM14 4h6v6h-6zM4 14h6v6H4zM14 14h6v6h-6z"/></svg>
+          </button>
+        </div>
+      </div>
       <div class="chips">
         ${Object.entries(filters).map(([sleutel, naam]) => `
           <button class="chip" data-filter="${sleutel}" aria-pressed="${staat.filter === sleutel}">${naam}</button>`).join('')}
@@ -209,11 +234,24 @@ function kaartHtml(a, i) {
     </button>`;
 }
 
+function tegelHtml(a, i) {
+  const w = winst(a);
+  const bedrag = w === null ? formatEuro(a.inkoopprijs) : metTeken(w);
+  const omschrijving = `${a.naam}, ${STATUSSEN[a.status]}, ${w === null ? 'ingekocht voor' : 'winst'} ${bedrag}`;
+  return `
+    <button class="tegel-foto" style="--i:${i}" data-actie="open" data-id="${esc(a.id)}" aria-label="${esc(omschrijving)}">
+      ${a.foto ? `<img src="${esc(a.foto)}" alt="">` : `<span class="tegel-letter">${esc(a.naam.charAt(0).toUpperCase())}</span>`}
+      <span class="tegel-info"><span>${esc(a.naam)}</span><strong>${bedrag}</strong></span>
+    </button>`;
+}
+
 function renderLijst() {
   const lijst = document.getElementById('lijst');
   const artikelen = zichtbareArtikelen();
+  const raster = staat.weergave === 'raster' && artikelen.length > 0;
+  lijst.classList.toggle('raster', raster);
   if (artikelen.length) {
-    lijst.innerHTML = artikelen.map(kaartHtml).join('');
+    lijst.innerHTML = artikelen.map(raster ? tegelHtml : kaartHtml).join('');
   } else if (staat.artikelen.length) {
     lijst.innerHTML = '<div class="leeg"><h3>Niets gevonden</h3><p>Probeer een andere zoekterm of filter.</p></div>';
   } else {
@@ -260,10 +298,13 @@ function meterHtml(label, waarde, tekst, grens) {
 function renderOverzicht() {
   const huidigJaar = new Date().getFullYear();
   const vandaag = vandaagIso();
-  const o = jaarOverzicht(staat.artikelen, staat.jaar);
-  const jaren = beschikbareJaren(staat.artikelen, huidigJaar);
+  const o = jaarOverzicht(staat.artikelen, staat.jaar, staat.kosten);
+  const jaren = beschikbareJaren(staat.artikelen, huidigJaar, staat.kosten);
   const liggen = blijvenLiggen(staat.artikelen, vandaag);
-  const maandRegels = o.maanden.filter((m) => m.aantal);
+  const maandRegels = o.maanden.filter((m) => m.aantal || m.extraKosten);
+  const kostenVanJaar = staat.kosten
+    .filter((k) => k.datum.startsWith(`${staat.jaar}-`))
+    .sort((x, y) => y.datum.localeCompare(x.datum));
 
   view.innerHTML = `
     <section class="scherm">
@@ -281,7 +322,7 @@ function renderOverzicht() {
       </div>
       <div class="tegels">
         <div class="tegel"><strong>${formatEuro(o.ingekocht)}</strong><small>ingekocht in ${staat.jaar}</small></div>
-        <div class="tegel"><strong>${formatEuro(o.kosten)}</strong><small>kosten</small></div>
+        <div class="tegel"><strong>${formatEuro(o.kosten)}</strong><small>kosten op artikelen</small></div>
         <div class="tegel"><strong>${formatEuro(o.voorraadWaarde)}</strong><small>voorraadwaarde nu</small></div>
         <div class="tegel"><strong>${o.verkocht ? formatEuro(Math.round(o.winst / o.verkocht)) : '–'}</strong><small>winst per verkoop</small></div>
       </div>
@@ -300,6 +341,21 @@ function renderOverzicht() {
               </tbody>
             </table>
           </details>` : ''}
+      </div>
+
+      <h2 class="subkop">Extra kosten</h2>
+      <div class="paneel">
+        <div class="kosten-totaal"><span>Totaal in ${staat.jaar}</span><strong>${formatEuro(o.extraKosten)}</strong></div>
+        <p class="klein">Bijvoorbeeld boosten of verzendmateriaal. Dit gaat van je winst af.</p>
+        ${kostenVanJaar.length ? `
+          <div class="kosten-lijst">
+            ${kostenVanJaar.map((k) => `
+              <button class="kosten-regel" data-actie="openKosten" data-id="${esc(k.id)}">
+                <span><strong>${esc(k.naam)}</strong><small>${formatDatum(k.datum)}</small></span>
+                <span class="kosten-bedrag">${formatEuro(k.bedrag)}</span>
+              </button>`).join('')}
+          </div>` : ''}
+        <button class="knop-tweede kosten-knop" data-actie="nieuweKosten">+ Kosten toevoegen</button>
       </div>
 
       <h2 class="subkop">Meldgrens Vinted</h2>
@@ -410,7 +466,7 @@ function openFormulier(artikel) {
           ${veldHtml('inkoopprijs', 'Inkoopprijs (€)', euroInvoer(a.inkoopprijs), 'inputmode="decimal" autocomplete="off" placeholder="0,00"')}
           ${veldHtml('inkoopdatum', 'Inkoopdatum', a.inkoopdatum, 'type="date"')}
         </div>
-        <div class="seg" role="radiogroup" aria-label="Status">
+        <div class="seg seg-vier" role="radiogroup" aria-label="Status">
           <span class="seg-duim"></span>
           ${Object.entries(STATUSSEN).map(([sleutel, naam]) => `
             <input type="radio" id="st-${sleutel}" name="status" value="${sleutel}" ${a.status === sleutel ? 'checked' : ''}>
@@ -438,6 +494,37 @@ function openFormulier(artikel) {
   sheet.scrollTop = 0;
   history.pushState({ sheet: true }, '');
   werkLiveWinstBij();
+}
+
+function openKostenFormulier(kosten) {
+  staat.concept = { id: kosten?.id ?? null };
+  const k = kosten ?? { datum: vandaagIso() };
+  const suggesties = [...new Set([...KOSTEN_SUGGESTIES, ...staat.kosten.map((x) => x.naam)])];
+
+  sheet.innerHTML = `
+    <div class="sheet-greep"></div>
+    <div class="sheet-kop">
+      <h2>${kosten ? 'Extra kosten' : 'Nieuwe kosten'}</h2>
+      <button class="sluit" type="button" data-actie="sluit" aria-label="Sluiten">✕</button>
+    </div>
+    <form id="kosten-formulier" novalidate>
+      <div class="form">
+        ${veldHtml('naam', 'Waarvoor', k.naam, 'list="lijst-kosten" autocomplete="off" required')}
+        <div class="twee">
+          ${veldHtml('bedrag', 'Bedrag (€)', euroInvoer(k.bedrag), 'inputmode="decimal" autocomplete="off" placeholder="0,00"')}
+          ${veldHtml('datum', 'Datum', k.datum, 'type="date"')}
+        </div>
+        <datalist id="lijst-kosten">${suggesties.map((s) => `<option value="${esc(s)}"></option>`).join('')}</datalist>
+      </div>
+      <div class="sheet-voet">
+        ${kosten ? '<button class="knop-weg" type="button" data-actie="verwijderKosten">Verwijderen</button>' : ''}
+        <button class="knop" type="submit">Bewaren</button>
+      </div>
+    </form>`;
+
+  sheet.showModal();
+  sheet.scrollTop = 0;
+  history.pushState({ sheet: true }, '');
 }
 
 function openLogin() {
@@ -503,7 +590,7 @@ async function synchroniseerNu() {
     const binnen = await syncNu();
     staat.syncStatus = 'ok';
     renderTopbalk();
-    if (binnen) staat.artikelen = await alleArtikelen();
+    if (binnen) await laadGegevens();
     // Niet verversen terwijl er getypt wordt, anders verdwijnt de invoer.
     if (!sheet.open && document.activeElement?.id !== 'zoek' && (binnen || staat.tab === 'meer')) render();
   } catch {
@@ -599,7 +686,7 @@ async function bewaarFormulier(form) {
     return;
   }
 
-  staat.artikelen = await alleArtikelen();
+  await laadGegevens();
   sluitFormulier();
   render();
   planSync();
@@ -611,6 +698,39 @@ async function bewaarFormulier(form) {
   } else {
     toon('Bewaard');
   }
+}
+
+async function bewaarKosten(form) {
+  const naam = form.naam.value.trim();
+  const bedrag = leesBedrag(form, 'bedrag', true);
+  const naamOk = zetFout(form, 'naam', naam ? null : 'Vul in waarvoor dit was');
+  const datumOk = zetFout(form, 'datum', form.datum.value ? null : 'Kies een datum');
+
+  if (!naamOk || !datumOk || bedrag === null || Number.isNaN(bedrag)) {
+    form.querySelector('[aria-invalid="true"]')?.focus();
+    return;
+  }
+
+  const bestaand = staat.kosten.find((k) => k.id === staat.concept.id);
+  try {
+    await bewaarArtikel({
+      id: bestaand?.id ?? crypto.randomUUID(),
+      aangemaakt: bestaand?.aangemaakt ?? new Date().toISOString(),
+      soort: 'kosten',
+      naam,
+      bedrag,
+      datum: form.datum.value,
+    });
+  } catch {
+    toon('Opslaan is niet gelukt');
+    return;
+  }
+
+  await laadGegevens();
+  sluitFormulier();
+  render();
+  planSync();
+  toon('Bewaard');
 }
 
 async function verkleinFoto(bestand) {
@@ -642,13 +762,13 @@ async function zetBackupTerug(bestand) {
   } catch {
     artikelen = null;
   }
-  if (!Array.isArray(artikelen) || !artikelen.every((a) => a?.id && a?.naam && STATUSSEN[a.status])) {
+  if (!Array.isArray(artikelen) || !artikelen.every((a) => a?.id && a?.naam && (a.soort === 'kosten' || STATUSSEN[a.status]))) {
     toon('Dit is geen geldige back-up');
     return;
   }
-  if (!confirm(`${artikelen.length} artikelen terugzetten? Alles wat nu in de app staat wordt vervangen.`)) return;
+  if (!confirm(`${artikelen.length} regels terugzetten? Alles wat nu in de app staat wordt vervangen.`)) return;
   await vervangAlles(artikelen);
-  staat.artikelen = await alleArtikelen();
+  await laadGegevens();
   render();
   planSync();
   toon('Back-up teruggezet');
@@ -656,18 +776,28 @@ async function zetBackupTerug(bestand) {
 
 /* Bediening */
 
+async function verwijderEnVerwerk() {
+  await verwijderArtikel(staat.concept.id);
+  await laadGegevens();
+  sluitFormulier();
+  render();
+  planSync();
+  toon('Verwijderd');
+}
+
 const acties = {
   nieuw: () => openFormulier(),
   open: (knop) => openFormulier(staat.artikelen.find((a) => a.id === knop.dataset.id)),
   sluit: sluitFormulier,
   async verwijder() {
     if (!confirm('Dit artikel verwijderen?')) return;
-    await verwijderArtikel(staat.concept.id);
-    staat.artikelen = await alleArtikelen();
-    sluitFormulier();
-    render();
-    planSync();
-    toon('Verwijderd');
+    await verwijderEnVerwerk();
+  },
+  nieuweKosten: () => openKostenFormulier(),
+  openKosten: (knop) => openKostenFormulier(staat.kosten.find((k) => k.id === knop.dataset.id)),
+  async verwijderKosten() {
+    if (!confirm('Deze kosten verwijderen?')) return;
+    await verwijderEnVerwerk();
   },
   login: openLogin,
   registreer: () => verwerkLogin(registreren),
@@ -688,8 +818,8 @@ const acties = {
     staat.syncStatus = null;
     render();
   },
-  csv: () => download(`winstje-${vandaagIso()}.csv`, naarCsv(staat.artikelen), 'text/csv;charset=utf-8'),
-  backup: () => download(`winstje-backup-${vandaagIso()}.json`, JSON.stringify(staat.artikelen), 'application/json'),
+  csv: () => download(`winstje-${vandaagIso()}.csv`, naarCsv(staat.artikelen, staat.kosten), 'text/csv;charset=utf-8'),
+  backup: () => download(`winstje-backup-${vandaagIso()}.json`, JSON.stringify([...staat.artikelen, ...staat.kosten]), 'application/json'),
   herstel: () => backupBestand.click(),
   async installeer() {
     await staat.installatie?.prompt();
@@ -715,6 +845,19 @@ document.addEventListener('click', (e) => {
     return;
   }
 
+  const weergave = e.target.closest('[data-weergave]');
+  if (weergave) {
+    staat.weergave = weergave.dataset.weergave;
+    try {
+      localStorage.setItem('winstje-lijstweergave', staat.weergave);
+    } catch {
+      // Dan geldt de keuze alleen tot de app wordt gesloten.
+    }
+    document.querySelectorAll('[data-weergave]').forEach((k) => k.setAttribute('aria-pressed', k === weergave));
+    renderLijst();
+    return;
+  }
+
   const jaar = e.target.closest('[data-jaar]');
   if (jaar) {
     staat.jaar = Number(jaar.dataset.jaar);
@@ -724,7 +867,7 @@ document.addEventListener('click', (e) => {
 
   const kolom = e.target.closest('[data-maand]');
   if (kolom) {
-    const m = jaarOverzicht(staat.artikelen, staat.jaar).maanden[kolom.dataset.maand];
+    const m = jaarOverzicht(staat.artikelen, staat.jaar, staat.kosten).maanden[kolom.dataset.maand];
     document.querySelectorAll('[data-maand]').forEach((k) => k.setAttribute('aria-pressed', k === kolom));
     document.getElementById('grafiek-info').innerHTML = `<strong>${m.naam}: ${formatEuro(m.winst)}</strong> winst, ${m.aantal} verkocht`;
     return;
@@ -777,6 +920,7 @@ sheet.addEventListener('change', async (e) => {
 sheet.addEventListener('submit', (e) => {
   e.preventDefault();
   if (e.target.id === 'login') verwerkLogin(inloggen);
+  else if (e.target.id === 'kosten-formulier') bewaarKosten(e.target);
   else bewaarFormulier(e.target);
 });
 
@@ -805,7 +949,7 @@ document.addEventListener('visibilitychange', () => {
 
 async function start() {
   zetThemaKleur(huidigThema());
-  staat.artikelen = await alleArtikelen();
+  await laadGegevens();
   render();
   staat.account = await huidigAccount();
   if (staat.tab === 'meer') render();
