@@ -2,7 +2,7 @@ import { alleArtikelen, alleKosten, bewaarArtikel, verwijderArtikel, vervangAlle
 import { isGekoppeld, huidigAccount, inloggen, registreren, uitloggen, syncNu, foutTekst } from './account.js';
 import {
   STATUSSEN, parseEuro, formatEuro, euroInvoer, winst, vandaagIso, dagenTussen, formatDatum,
-  beschikbareJaren, jaarOverzicht, blijvenLiggen, naarCsv,
+  beschikbareJaren, jaarOverzicht, totaalOverzicht, blijvenLiggen, naarCsv,
 } from './logic.js';
 
 const CATEGORIEEN = ['Kleding', 'Schoenen', 'Tassen', 'Accessoires', 'Sieraden', 'Overig'];
@@ -295,6 +295,34 @@ function meterHtml(label, waarde, tekst, grens) {
     </div>`;
 }
 
+const aantalArtikelen = (n) => `${n} ${n === 1 ? 'artikel' : 'artikelen'}`;
+
+function totaalHtml() {
+  const t = totaalOverzicht(staat.artikelen);
+  const samen = t.voorraadWaarde + t.opbrengst;
+  return `
+    <h2 class="subkop">Alle jaren samen</h2>
+    <div class="paneel">
+      ${samen ? `
+        <div class="verdeling" aria-hidden="true">
+          <span class="deel-voorraad" style="flex-grow:${t.voorraadWaarde}"></span>
+          <span class="deel-verkocht" style="flex-grow:${t.opbrengst}"></span>
+        </div>` : ''}
+      <div class="totaal-rij">
+        <span><i class="stip deel-voorraad"></i>Waarde voorraad<small>${aantalArtikelen(t.voorraadAantal)}, tegen inkoopprijs</small></span>
+        <strong>${formatEuro(t.voorraadWaarde)}</strong>
+      </div>
+      <div class="totaal-rij">
+        <span><i class="stip deel-verkocht"></i>Verkoopopbrengst<small>${aantalArtikelen(t.verkocht)} verkocht</small></span>
+        <strong>${formatEuro(t.opbrengst)}</strong>
+      </div>
+      <div class="totaal-rij">
+        <span>Totale inkoopkosten<small>Alles wat je ooit hebt ingekocht</small></span>
+        <strong>${formatEuro(t.ingekocht)}</strong>
+      </div>
+    </div>`;
+}
+
 function renderOverzicht() {
   const huidigJaar = new Date().getFullYear();
   const vandaag = vandaagIso();
@@ -326,6 +354,8 @@ function renderOverzicht() {
         <div class="tegel"><strong>${formatEuro(o.voorraadWaarde)}</strong><small>voorraadwaarde nu</small></div>
         <div class="tegel"><strong>${o.verkocht ? formatEuro(Math.round(o.winst / o.verkocht)) : '–'}</strong><small>winst per verkoop</small></div>
       </div>
+
+      ${totaalHtml()}
 
       <h2 class="subkop">Winst per maand</h2>
       <div class="paneel">

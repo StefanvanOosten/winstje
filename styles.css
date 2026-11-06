@@ -272,6 +272,18 @@ h1, h2, h3, p { margin: 0; }
 
 .paneel { padding: 16px; border-radius: 22px; background: var(--vlak); box-shadow: var(--schaduw); }
 
+.verdeling { display: flex; gap: 3px; height: 12px; margin-bottom: 6px; overflow: hidden; border-radius: 6px; }
+.verdeling span { flex-basis: 0; min-width: 0; }
+.deel-voorraad { background: var(--accent); }
+.deel-verkocht { background: var(--plus); }
+.totaal-rij { display: flex; justify-content: space-between; align-items: center; gap: 12px; padding: 10px 0; }
+.totaal-rij + .totaal-rij { border-top: 1px solid var(--rand); }
+.totaal-rij:last-child { padding-bottom: 0; }
+.totaal-rij span { min-width: 0; }
+.totaal-rij small { display: block; color: var(--tekst-2); font-size: 13px; }
+.totaal-rij strong { flex: none; font: 600 19px/1.2 var(--kop); font-variant-numeric: tabular-nums; }
+.stip { display: inline-block; width: 10px; height: 10px; margin-right: 7px; border-radius: 50%; }
+
 .kosten-totaal { display: flex; justify-content: space-between; align-items: baseline; gap: 12px; margin-bottom: 4px; }
 .kosten-totaal strong { font: 600 21px/1.2 var(--kop); font-variant-numeric: tabular-nums; }
 .kosten-lijst { margin-top: 10px; }

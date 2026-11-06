@@ -102,6 +102,22 @@ export function jaarOverzicht(artikelen, jaar, extraKosten = []) {
   return uitkomst;
 }
 
+/** Stand over alle jaren samen. Voorraad telt tegen inkoopprijs, verkocht tegen verkoopprijs. */
+export function totaalOverzicht(artikelen) {
+  const uitkomst = { ingekocht: 0, opbrengst: 0, verkocht: 0, voorraadWaarde: 0, voorraadAantal: 0 };
+  for (const a of artikelen) {
+    uitkomst.ingekocht += a.inkoopprijs ?? 0;
+    if (a.status === 'verkocht') {
+      uitkomst.opbrengst += a.verkoopprijs ?? 0;
+      uitkomst.verkocht += 1;
+    } else {
+      uitkomst.voorraadWaarde += a.inkoopprijs ?? 0;
+      uitkomst.voorraadAantal += 1;
+    }
+  }
+  return uitkomst;
+}
+
 /** Artikelen die binnen zijn, niet verkocht en al minstens `dagen` dagen in huis, oudste eerst. */
 export function blijvenLiggen(artikelen, vandaag, dagen = 60) {
   return artikelen

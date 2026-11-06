@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import {
-  parseEuro, euroInvoer, winst, vandaagIso, dagenTussen, beschikbareJaren, jaarOverzicht, blijvenLiggen, naarCsv,
+  parseEuro, euroInvoer, winst, vandaagIso, dagenTussen, beschikbareJaren, jaarOverzicht, totaalOverzicht, blijvenLiggen, naarCsv,
 } from '../logic.js';
 
 test('parseEuro leest Nederlandse en gewone notaties', () => {
@@ -102,6 +102,13 @@ test('naarCsv zet extra kosten erbij met negatieve winst', () => {
   assert.equal(regel[8], '2026-03-10');
   assert.equal(regel[10], '3,50');
   assert.equal(regel[11], '-3,50');
+});
+
+test('totaalOverzicht telt alle jaren samen', () => {
+  assert.deepEqual(totaalOverzicht(data), {
+    ingekocht: 2700, opbrengst: 3800, verkocht: 3, voorraadWaarde: 900, voorraadAantal: 2,
+  });
+  assert.equal(totaalOverzicht([]).ingekocht, 0);
 });
 
 test('beschikbareJaren bevat alle jaren en altijd het huidige', () => {
