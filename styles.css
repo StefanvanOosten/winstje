@@ -199,6 +199,7 @@ h1, h2, h3, p { margin: 0; }
 .kaart:active { transform: scale(.975); }
 
 .thumb {
+  position: relative;
   flex: none;
   display: grid;
   place-items: center;
@@ -210,7 +211,8 @@ h1, h2, h3, p { margin: 0; }
   color: var(--accent);
   font: 800 24px var(--kop);
 }
-.thumb img { width: 100%; height: 100%; object-fit: cover; display: block; }
+/* Absoluut, anders rekt een staande foto de rij op en valt de onderkant weg. */
+.thumb img { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; }
 
 .kaart-tekst { flex: 1; min-width: 0; }
 .kaart-tekst strong { display: block; font-weight: 700; overflow: hidden; white-space: nowrap; text-overflow: ellipsis; }
@@ -409,7 +411,7 @@ th { color: var(--tekst-2); font-weight: 500; }
   cursor: pointer;
 }
 .foto-knop:has(img) { border-style: solid; }
-.foto-knop img { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; }
+.foto-knop img { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: contain; }
 .foto-knop input { position: absolute; opacity: 0; pointer-events: none; }
 
 .seg { position: relative; display: grid; grid-template-columns: repeat(3, 1fr); padding: 4px; border-radius: 16px; background: var(--vlak-2); }
