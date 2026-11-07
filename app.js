@@ -316,6 +316,11 @@ function totaalHtml() {
         <span><i class="stip deel-verkocht"></i>Verkoopopbrengst<small>${aantalArtikelen(t.verkocht)} verkocht</small></span>
         <strong>${formatEuro(t.opbrengst)}</strong>
       </div>
+      ${t.zelfAantal ? `
+        <div class="totaal-rij">
+          <span>Zelf gehouden<small>${aantalArtikelen(t.zelfAantal)}, tegen inkoopprijs</small></span>
+          <strong>${formatEuro(t.zelfWaarde)}</strong>
+        </div>` : ''}
       <div class="totaal-rij">
         <span>Totale inkoopkosten<small>Alles wat je ooit hebt ingekocht</small></span>
         <strong>${formatEuro(t.ingekocht)}</strong>
@@ -496,12 +501,12 @@ function openFormulier(artikel) {
           ${veldHtml('inkoopprijs', 'Inkoopprijs (€)', euroInvoer(a.inkoopprijs), 'inputmode="decimal" autocomplete="off" placeholder="0,00"')}
           ${veldHtml('inkoopdatum', 'Inkoopdatum', a.inkoopdatum, 'type="date"')}
         </div>
-        <div class="seg seg-vier" role="radiogroup" aria-label="Status">
-          <span class="seg-duim"></span>
+        <div class="veld"><span id="status-kop">Status</span>
+        <div class="keuzes" role="radiogroup" aria-labelledby="status-kop">
           ${Object.entries(STATUSSEN).map(([sleutel, naam]) => `
             <input type="radio" id="st-${sleutel}" name="status" value="${sleutel}" ${a.status === sleutel ? 'checked' : ''}>
             <label for="st-${sleutel}">${naam}</label>`).join('')}
-        </div>
+        </div></div>
         <div class="verkoop-velden" id="verkoop-velden" ${a.status === 'verkocht' ? '' : 'hidden'}>
           <div class="twee">
             ${veldHtml('verkoopprijs', 'Verkoopprijs (€)', euroInvoer(a.verkoopprijs), 'inputmode="decimal" autocomplete="off" placeholder="0,00"')}

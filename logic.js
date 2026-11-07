@@ -8,7 +8,11 @@ export const STATUSSEN = {
   voorraad: 'Voorraad',
   te_koop: 'Te koop',
   verkocht: 'Verkocht',
+  zelf_houden: 'Zelf houden',
 };
+
+/** Wat zelf gehouden wordt, telt niet als voorraad en niet als verkoop. */
+const isVoorraad = (a) => !['verkocht', 'zelf_houden'].includes(a.status);
 
 export const MAANDEN = ['jan', 'feb', 'mrt', 'apr', 'mei', 'jun', 'jul', 'aug', 'sep', 'okt', 'nov', 'dec'];
 
@@ -74,11 +78,11 @@ export function jaarOverzicht(artikelen, jaar, extraKosten = []) {
   for (const a of artikelen) {
     if (a.inkoopdatum?.startsWith(`${jaar}-`)) uitkomst.ingekocht += a.inkoopprijs ?? 0;
 
-    if (a.status !== 'verkocht') {
+    if (isVoorraad(a)) {
       // Voorraad is een stand van nu en hoort dus niet bij een bepaald jaar.
       uitkomst.voorraadWaarde += a.inkoopprijs ?? 0;
       uitkomst.voorraadAantal += 1;
-    } else if (a.verkoopdatum?.startsWith(`${jaar}-`)) {
+    } else if (a.status === 'verkocht' && a.verkoopdatum?.startsWith(`${jaar}-`)) {
       const w = winst(a);
       const maand = maanden[Number(a.verkoopdatum.slice(5, 7)) - 1];
       uitkomst.verkocht += 1;
@@ -104,12 +108,15 @@ export function jaarOverzicht(artikelen, jaar, extraKosten = []) {
 
 /** Stand over alle jaren samen. Voorraad telt tegen inkoopprijs, verkocht tegen verkoopprijs. */
 export function totaalOverzicht(artikelen) {
-  const uitkomst = { ingekocht: 0, opbrengst: 0, verkocht: 0, voorraadWaarde: 0, voorraadAantal: 0 };
+  const uitkomst = { ingekocht: 0, opbrengst: 0, verkocht: 0, voorraadWaarde: 0, voorraadAantal: 0, zelfWaarde: 0, zelfAantal: 0 };
   for (const a of artikelen) {
     uitkomst.ingekocht += a.inkoopprijs ?? 0;
     if (a.status === 'verkocht') {
       uitkomst.opbrengst += a.verkoopprijs ?? 0;
       uitkomst.verkocht += 1;
+    } else if (a.status === 'zelf_houden') {
+      uitkomst.zelfWaarde += a.inkoopprijs ?? 0;
+      uitkomst.zelfAantal += 1;
     } else {
       uitkomst.voorraadWaarde += a.inkoopprijs ?? 0;
       uitkomst.voorraadAantal += 1;
@@ -121,7 +128,7 @@ export function totaalOverzicht(artikelen) {
 /** Artikelen die binnen zijn, niet verkocht en al minstens `dagen` dagen in huis, oudste eerst. */
 export function blijvenLiggen(artikelen, vandaag, dagen = 60) {
   return artikelen
-    .filter((a) => !['verkocht', 'gekocht'].includes(a.status) && a.inkoopdatum && dagenTussen(a.inkoopdatum, vandaag) >= dagen)
+    .filter((a) => isVoorraad(a) && a.status !== 'gekocht' && a.inkoopdatum && dagenTussen(a.inkoopdatum, vandaag) >= dagen)
     .sort((x, y) => x.inkoopdatum.localeCompare(y.inkoopdatum));
 }
 

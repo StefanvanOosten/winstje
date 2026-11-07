@@ -106,9 +106,24 @@ test('naarCsv zet extra kosten erbij met negatieve winst', () => {
 
 test('totaalOverzicht telt alle jaren samen', () => {
   assert.deepEqual(totaalOverzicht(data), {
-    ingekocht: 2700, opbrengst: 3800, verkocht: 3, voorraadWaarde: 900, voorraadAantal: 2,
+    ingekocht: 2700, opbrengst: 3800, verkocht: 3, voorraadWaarde: 900, voorraadAantal: 2, zelfWaarde: 0, zelfAantal: 0,
   });
   assert.equal(totaalOverzicht([]).ingekocht, 0);
+});
+
+test('zelf houden telt niet als voorraad, verkoop of winst', () => {
+  const zelf = { id: 7, status: 'zelf_houden', inkoopdatum: '2026-01-01', inkoopprijs: 450 };
+  const o = jaarOverzicht([...data, zelf], 2026);
+  const zonder = jaarOverzicht(data, 2026);
+  assert.equal(o.voorraadAantal, zonder.voorraadAantal);
+  assert.equal(o.winst, zonder.winst);
+  assert.equal(o.verkocht, zonder.verkocht);
+  assert.equal(o.ingekocht, zonder.ingekocht + 450);
+  const t = totaalOverzicht([zelf]);
+  assert.equal(t.zelfAantal, 1);
+  assert.equal(t.zelfWaarde, 450);
+  assert.equal(t.voorraadAantal, 0);
+  assert.deepEqual(blijvenLiggen([zelf], '2026-11-05'), []);
 });
 
 test('beschikbareJaren bevat alle jaren en altijd het huidige', () => {
