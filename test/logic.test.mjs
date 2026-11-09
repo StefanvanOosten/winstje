@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import {
-  parseEuro, euroInvoer, winst, vandaagIso, dagenTussen, beschikbareJaren, jaarOverzicht, totaalOverzicht, blijvenLiggen, naarCsv,
+  parseEuro, euroInvoer, winst, vandaagIso, dagenTussen, beschikbareJaren, jaarOverzicht, totaalOverzicht, blijvenLiggen, naarCsv, sorteer,
 } from '../logic.js';
 
 test('parseEuro leest Nederlandse en gewone notaties', () => {
@@ -124,6 +124,28 @@ test('zelf houden telt niet als voorraad, verkoop of winst', () => {
   assert.equal(t.zelfWaarde, 450);
   assert.equal(t.voorraadAantal, 0);
   assert.deepEqual(blijvenLiggen([zelf], '2026-11-05'), []);
+});
+
+test('jaarOverzicht telt per maand alle uitgaven', () => {
+  const o = jaarOverzicht(data, 2026, [{ soort: 'kosten', naam: 'Dozen', bedrag: 50, datum: '2026-01-20' }]);
+  // januari: verkoopkosten 100 van artikel 1, inkoop 700 van artikel 4 en 50 extra
+  assert.equal(o.maanden[0].uitgaven, 850);
+  assert.equal(o.maanden[0].inkoop, 700);
+  assert.equal(o.maanden[1].uitgaven, 500);
+  assert.equal(o.uitgaven, o.ingekocht + o.kosten + o.extraKosten);
+  assert.equal(o.maanden.reduce((s, m) => s + m.uitgaven, 0), o.uitgaven);
+});
+
+test('sorteer op aankoopdatum, winst en aankoopprijs', () => {
+  const ids = (sleutel) => sorteer(data, sleutel).map((a) => a.id);
+  assert.deepEqual(ids('datum_nieuw'), [5, 2, 4, 1, 3]);
+  assert.deepEqual(ids('datum_oud'), [3, 1, 4, 2, 5]);
+  assert.deepEqual(ids('prijs_hoog'), [1, 4, 2, 3, 5]);
+  assert.deepEqual(ids('prijs_laag'), [5, 3, 2, 4, 1]);
+  assert.deepEqual(ids('winst_hoog').slice(0, 3), [1, 3, 2]);
+  assert.deepEqual(ids('winst_laag').slice(0, 3), [2, 3, 1]);
+  assert.deepEqual(ids('winst_laag').slice(3).sort(), [4, 5]);
+  assert.notEqual(sorteer(data, 'prijs_hoog'), data);
 });
 
 test('beschikbareJaren bevat alle jaren en altijd het huidige', () => {

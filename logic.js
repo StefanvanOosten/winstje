@@ -72,11 +72,17 @@ export function beschikbareJaren(artikelen, huidigJaar, extraKosten = []) {
 
 /** `winst` is na aftrek van de extra kosten die niet bij één artikel horen, zoals boosten. */
 export function jaarOverzicht(artikelen, jaar, extraKosten = []) {
-  const maanden = MAANDEN.map((naam) => ({ naam, aantal: 0, omzet: 0, winst: 0, extraKosten: 0 }));
+  // `uitgaven` is alles wat die maand is uitgegeven: inkoop, kosten op verkopen en extra kosten.
+  const maanden = MAANDEN.map((naam) => ({ naam, aantal: 0, omzet: 0, winst: 0, extraKosten: 0, inkoop: 0, uitgaven: 0 }));
   const uitkomst = { omzet: 0, winst: 0, kosten: 0, extraKosten: 0, verkocht: 0, ingekocht: 0, voorraadWaarde: 0, voorraadAantal: 0, maanden };
 
   for (const a of artikelen) {
-    if (a.inkoopdatum?.startsWith(`${jaar}-`)) uitkomst.ingekocht += a.inkoopprijs ?? 0;
+    if (a.inkoopdatum?.startsWith(`${jaar}-`)) {
+      const maand = maanden[Number(a.inkoopdatum.slice(5, 7)) - 1];
+      uitkomst.ingekocht += a.inkoopprijs ?? 0;
+      maand.inkoop += a.inkoopprijs ?? 0;
+      maand.uitgaven += a.inkoopprijs ?? 0;
+    }
 
     if (isVoorraad(a)) {
       // Voorraad is een stand van nu en hoort dus niet bij een bepaald jaar.
@@ -92,6 +98,7 @@ export function jaarOverzicht(artikelen, jaar, extraKosten = []) {
       maand.aantal += 1;
       maand.omzet += a.verkoopprijs ?? 0;
       maand.winst += w;
+      maand.uitgaven += a.kosten ?? 0;
     }
   }
 
@@ -102,8 +109,41 @@ export function jaarOverzicht(artikelen, jaar, extraKosten = []) {
     uitkomst.winst -= k.bedrag;
     maand.extraKosten += k.bedrag;
     maand.winst -= k.bedrag;
+    maand.uitgaven += k.bedrag;
   }
+  uitkomst.uitgaven = uitkomst.ingekocht + uitkomst.kosten + uitkomst.extraKosten;
   return uitkomst;
+}
+
+export const SORTERINGEN = {
+  nieuw: 'Laatst toegevoegd',
+  datum_nieuw: 'Aankoopdatum, nieuwste eerst',
+  datum_oud: 'Aankoopdatum, oudste eerst',
+  winst_hoog: 'Winst, hoogste eerst',
+  winst_laag: 'Winst, laagste eerst',
+  prijs_hoog: 'Aankoopprijs, hoogste eerst',
+  prijs_laag: 'Aankoopprijs, laagste eerst',
+};
+
+/** Nieuwe lijst in de gekozen volgorde. Zonder winst (niet verkocht) staat bij winst altijd achteraan. */
+export function sorteer(artikelen, sleutel) {
+  const laatst = (x, y) => (y.aangemaakt ?? '').localeCompare(x.aangemaakt ?? '');
+  const op = {
+    datum_nieuw: (x, y) => (y.inkoopdatum ?? '').localeCompare(x.inkoopdatum ?? ''),
+    datum_oud: (x, y) => (x.inkoopdatum ?? '').localeCompare(y.inkoopdatum ?? ''),
+    prijs_hoog: (x, y) => (y.inkoopprijs ?? 0) - (x.inkoopprijs ?? 0),
+    prijs_laag: (x, y) => (x.inkoopprijs ?? 0) - (y.inkoopprijs ?? 0),
+    winst_hoog: (x, y) => winstVolgorde(x, y, -1),
+    winst_laag: (x, y) => winstVolgorde(x, y, 1),
+  }[sleutel];
+  return [...artikelen].sort((x, y) => (op ? op(x, y) : 0) || laatst(x, y));
+}
+
+function winstVolgorde(x, y, richting) {
+  const wx = winst(x);
+  const wy = winst(y);
+  if (wx === null || wy === null) return (wx === null) - (wy === null);
+  return (wx - wy) * richting;
 }
 
 /** Stand over alle jaren samen. Voorraad telt tegen inkoopprijs, verkocht tegen verkoopprijs. */

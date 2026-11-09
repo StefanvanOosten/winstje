@@ -171,6 +171,34 @@ h1, h2, h3, p { margin: 0; }
 
 .chips { display: flex; gap: 8px; margin: 12px -16px 14px; padding: 2px 16px; overflow-x: auto; scrollbar-width: none; }
 .chips::-webkit-scrollbar { display: none; }
+
+.lijst-kop { display: flex; justify-content: space-between; align-items: center; gap: 12px; margin: -4px 0 10px; }
+.lijst-kop > .klein { flex: none; white-space: nowrap; }
+.sorteer { position: relative; min-width: 0; }
+.sorteer select {
+  max-width: 100%;
+  padding: 7px 30px 7px 12px;
+  border: 1px solid var(--rand);
+  border-radius: 12px;
+  background: var(--vlak);
+  color: var(--tekst);
+  font: 500 14px var(--tekst-font, inherit);
+  appearance: none;
+  text-overflow: ellipsis;
+}
+.sorteer::after {
+  content: '';
+  position: absolute;
+  right: 13px;
+  top: 50%;
+  width: 7px;
+  height: 7px;
+  border: solid var(--tekst-2);
+  border-width: 0 2px 2px 0;
+  transform: translateY(-70%) rotate(45deg);
+  pointer-events: none;
+}
+.verborgen { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); white-space: nowrap; }
 .chip {
   flex: none;
   padding: 8px 14px;
@@ -294,6 +322,15 @@ h1, h2, h3, p { margin: 0; }
 .kosten-bedrag { flex: none; font-variant-numeric: tabular-nums; font-weight: 700; }
 .kosten-knop { display: block; width: 100%; margin-top: 12px; }
 
+.grafiek-tabs { display: flex; gap: 4px; margin-bottom: 14px; padding: 4px; border-radius: 14px; background: var(--vlak-2); }
+.grafiek-tabs button { flex: 1; padding: 8px 4px; border-radius: 10px; color: var(--tekst-2); font-size: 14px; font-weight: 600; transition: background .2s, color .2s; }
+.grafiek-tabs button[aria-pressed='true'] { background: var(--vlak); color: var(--tekst); box-shadow: 0 2px 8px rgb(30 10 60 / .16); }
+.grafiek-slider { display: flex; overflow-x: auto; overscroll-behavior-x: contain; scroll-snap-type: x mandatory; scrollbar-width: none; }
+.grafiek-slider::-webkit-scrollbar { display: none; }
+.grafiek-dia { flex: 0 0 100%; min-width: 0; scroll-snap-align: start; scroll-snap-stop: always; }
+.grafiek-dia[data-soort='omzet'] { --bar: var(--plus); }
+.grafiek-dia[data-soort='kosten'] { --bar: var(--bar-min); }
+.grafiek-uitleg { margin-top: 8px; text-align: center; }
 .grafiek-info { min-height: 22px; margin-bottom: 8px; color: var(--tekst-2); font-size: 14px; }
 .grafiek-info strong { color: var(--tekst); }
 

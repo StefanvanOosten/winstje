@@ -2,7 +2,7 @@ import { alleArtikelen, alleKosten, bewaarArtikel, verwijderArtikel, vervangAlle
 import { isGekoppeld, huidigAccount, inloggen, registreren, uitloggen, syncNu, foutTekst } from './account.js';
 import {
   STATUSSEN, parseEuro, formatEuro, euroInvoer, winst, vandaagIso, dagenTussen, formatDatum,
-  beschikbareJaren, jaarOverzicht, totaalOverzicht, blijvenLiggen, naarCsv,
+  beschikbareJaren, jaarOverzicht, totaalOverzicht, blijvenLiggen, naarCsv, SORTERINGEN, sorteer,
 } from './logic.js';
 
 const CATEGORIEEN = ['Kleding', 'Schoenen', 'Tassen', 'Accessoires', 'Sieraden', 'Overig'];
@@ -13,6 +13,29 @@ const GRAFIEK_HOOGTE = 130;
 const THEMAS = { auto: 'Automatisch', light: 'Licht', dark: 'Donker' };
 const THEMA_KLEUR = { light: '#f6f3fb', dark: '#120d1d' };
 const KOSTEN_SUGGESTIES = ['Boosten', 'Verzendmateriaal'];
+
+const GRAFIEKEN = [
+  { soort: 'winst', naam: 'Winst', veld: 'winst' },
+  { soort: 'omzet', naam: 'Omzet', veld: 'omzet' },
+  { soort: 'kosten', naam: 'Kosten', veld: 'uitgaven' },
+];
+
+function leesVoorkeur(sleutel, toegestaan, standaard) {
+  try {
+    const waarde = localStorage.getItem(sleutel);
+    return toegestaan.includes(waarde) ? waarde : standaard;
+  } catch {
+    return standaard;
+  }
+}
+
+function bewaarVoorkeur(sleutel, waarde) {
+  try {
+    localStorage.setItem(sleutel, waarde);
+  } catch {
+    // Dan geldt de keuze alleen tot de app wordt gesloten.
+  }
+}
 
 function leesWeergave() {
   try {
@@ -30,6 +53,8 @@ const staat = {
   artikelen: [],
   kosten: [],
   weergave: leesWeergave(),
+  sortering: leesVoorkeur('winstje-sortering', Object.keys(SORTERINGEN), 'nieuw'),
+  grafiek: 0,
   installatie: null,
   concept: null,
   account: null,
@@ -50,6 +75,8 @@ const esc = (t) => String(t ?? '').replace(/[&<>"']/g, (c) => (
 async function laadGegevens() {
   [staat.artikelen, staat.kosten] = await Promise.all([alleArtikelen(), alleKosten()]);
 }
+
+const aantalArtikelen = (n) => `${n} ${n === 1 ? 'artikel' : 'artikelen'}`;
 
 const klasseBedrag = (centen) => (centen < 0 ? 'min' : 'plus');
 const metTeken = (centen) => `${centen > 0 ? '+' : ''}${formatEuro(centen)}`;
@@ -205,6 +232,15 @@ function renderArtikelen() {
         ${Object.entries(filters).map(([sleutel, naam]) => `
           <button class="chip" data-filter="${sleutel}" aria-pressed="${staat.filter === sleutel}">${naam}</button>`).join('')}
       </div>
+      <div class="lijst-kop">
+        <span class="klein" id="lijst-aantal"></span>
+        <label class="sorteer"><span class="verborgen">Sorteren</span>
+          <select id="sortering">
+            ${Object.entries(SORTERINGEN).map(([sleutel, naam]) => `
+              <option value="${sleutel}" ${staat.sortering === sleutel ? 'selected' : ''}>${naam}</option>`).join('')}
+          </select>
+        </label>
+      </div>
       <div class="lijst" id="lijst"></div>
     </section>`;
 
@@ -214,10 +250,9 @@ function renderArtikelen() {
 
 function zichtbareArtikelen() {
   const zoek = staat.zoek.trim().toLowerCase();
-  return staat.artikelen
+  return sorteer(staat.artikelen
     .filter((a) => staat.filter === 'alles' || a.status === staat.filter)
-    .filter((a) => !zoek || [a.naam, a.merk, a.categorie, a.maat].some((v) => v?.toLowerCase().includes(zoek)))
-    .sort((x, y) => (y.aangemaakt ?? '').localeCompare(x.aangemaakt ?? ''));
+    .filter((a) => !zoek || [a.naam, a.merk, a.categorie, a.maat].some((v) => v?.toLowerCase().includes(zoek))), staat.sortering);
 }
 
 function kaartHtml(a, i) {
@@ -250,6 +285,7 @@ function renderLijst() {
   const artikelen = zichtbareArtikelen();
   const raster = staat.weergave === 'raster' && artikelen.length > 0;
   lijst.classList.toggle('raster', raster);
+  document.getElementById('lijst-aantal').textContent = aantalArtikelen(artikelen.length);
   if (artikelen.length) {
     lijst.innerHTML = artikelen.map(raster ? tegelHtml : kaartHtml).join('');
   } else if (staat.artikelen.length) {
@@ -264,26 +300,63 @@ function renderLijst() {
   }
 }
 
-function grafiekHtml(o) {
-  const grootste = Math.max(1, ...o.maanden.map((m) => Math.abs(m.winst)));
-  const heeftVerlies = o.maanden.some((m) => m.winst < 0);
+function grafiekHtml(o, veld) {
+  const waarden = o.maanden.map((m) => m[veld]);
+  const grootste = Math.max(1, ...waarden.map(Math.abs));
+  const heeftVerlies = waarden.some((w) => w < 0);
   const hoog = heeftVerlies ? GRAFIEK_HOOGTE * 0.72 : GRAFIEK_HOOGTE;
   const laag = heeftVerlies ? GRAFIEK_HOOGTE * 0.28 : 0;
   // De schaal is gelijk boven en onder de nullijn; een groot verlies past dan binnen het onderste deel.
-  const grootsteVerlies = Math.max(0, ...o.maanden.map((m) => -m.winst));
+  const grootsteVerlies = Math.max(0, ...waarden.map((w) => -w));
   const schaal = Math.min(hoog / grootste, grootsteVerlies ? laag / grootsteVerlies : Infinity);
 
   return o.maanden.map((m, i) => {
-    const px = Math.abs(m.winst) * schaal;
+    const w = m[veld];
+    const px = Math.abs(w) * schaal;
     const staaf = `<span class="staaf" style="--h:${px.toFixed(1)}px;--i:${i}"></span>`;
     return `
       <button class="kolom" style="--hoog:${hoog}px;--laag:${laag}px" data-maand="${i}" aria-pressed="false"
-        aria-label="${m.naam}: ${formatEuro(m.winst)} winst, ${m.aantal} verkocht">
-        <span class="kolom-boven">${m.winst > 0 ? staaf : ''}</span>
-        <span class="kolom-onder">${m.winst < 0 ? staaf : ''}</span>
+        aria-label="${esc(maandInfo(veld, m, false))}">
+        <span class="kolom-boven">${w > 0 ? staaf : ''}</span>
+        <span class="kolom-onder">${w < 0 ? staaf : ''}</span>
         <span class="kolom-naam">${m.naam.charAt(0).toUpperCase()}</span>
       </button>`;
   }).join('');
+}
+
+function maandInfo(veld, m, opmaak = true) {
+  const sterk = (t) => (opmaak ? `<strong>${t}</strong>` : t);
+  if (veld === 'omzet') return `${sterk(`${m.naam}: ${formatEuro(m.omzet)}`)} omzet, ${m.aantal} verkocht`;
+  if (veld === 'uitgaven') return `${sterk(`${m.naam}: ${formatEuro(m.uitgaven)}`)} kosten, waarvan ${formatEuro(m.inkoop)} inkoop`;
+  return `${sterk(`${m.naam}: ${formatEuro(m.winst)}`)} winst, ${m.aantal} verkocht`;
+}
+
+function grafiekenHtml(o) {
+  const totaal = { winst: o.winst, omzet: o.omzet, uitgaven: o.uitgaven };
+  return `
+    <div class="grafiek-tabs" role="group" aria-label="Kies een grafiek">
+      ${GRAFIEKEN.map((g, i) => `<button data-dia="${i}" aria-pressed="${i === staat.grafiek}">${g.naam}</button>`).join('')}
+    </div>
+    <div class="grafiek-slider" id="grafiek-slider">
+      ${GRAFIEKEN.map((g) => `
+        <div class="grafiek-dia" data-soort="${g.soort}" data-veld="${g.veld}" aria-label="${g.naam} per maand">
+          <p class="grafiek-info" data-standaard="Totaal ${staat.jaar}: <strong>${formatEuro(totaal[g.veld])}</strong>">Totaal ${staat.jaar}: <strong>${formatEuro(totaal[g.veld])}</strong></p>
+          <div class="grafiek">${grafiekHtml(o, g.veld)}</div>
+          ${g.veld === 'uitgaven' ? '<p class="klein grafiek-uitleg">Inkoop, verzendkosten en extra kosten samen</p>' : '<p class="klein grafiek-uitleg">Tik op een maand voor de details</p>'}
+        </div>`).join('')}
+    </div>`;
+}
+
+function koppelGrafieken() {
+  const slider = document.getElementById('grafiek-slider');
+  if (!slider) return;
+  slider.scrollLeft = staat.grafiek * slider.clientWidth;
+  slider.addEventListener('scroll', () => {
+    const nu = Math.round(slider.scrollLeft / slider.clientWidth);
+    if (nu === staat.grafiek || !GRAFIEKEN[nu]) return;
+    staat.grafiek = nu;
+    document.querySelectorAll('[data-dia]').forEach((k) => k.setAttribute('aria-pressed', Number(k.dataset.dia) === nu));
+  }, { passive: true });
 }
 
 function meterHtml(label, waarde, tekst, grens) {
@@ -294,8 +367,6 @@ function meterHtml(label, waarde, tekst, grens) {
       <div class="meter-balk"><span style="--p:${procent}%"></span></div>
     </div>`;
 }
-
-const aantalArtikelen = (n) => `${n} ${n === 1 ? 'artikel' : 'artikelen'}`;
 
 function totaalHtml() {
   const t = totaalOverzicht(staat.artikelen);
@@ -334,7 +405,7 @@ function renderOverzicht() {
   const o = jaarOverzicht(staat.artikelen, staat.jaar, staat.kosten);
   const jaren = beschikbareJaren(staat.artikelen, huidigJaar, staat.kosten);
   const liggen = blijvenLiggen(staat.artikelen, vandaag);
-  const maandRegels = o.maanden.filter((m) => m.aantal || m.extraKosten);
+  const maandRegels = o.maanden.filter((m) => m.aantal || m.uitgaven);
   const kostenVanJaar = staat.kosten
     .filter((k) => k.datum.startsWith(`${staat.jaar}-`))
     .sort((x, y) => y.datum.localeCompare(x.datum));
@@ -362,17 +433,16 @@ function renderOverzicht() {
 
       ${totaalHtml()}
 
-      <h2 class="subkop">Winst per maand</h2>
+      <h2 class="subkop">Per maand</h2>
       <div class="paneel">
-        <p class="grafiek-info" id="grafiek-info">Tik op een maand voor de details.</p>
-        <div class="grafiek">${grafiekHtml(o)}</div>
+        ${grafiekenHtml(o)}
         ${maandRegels.length ? `
           <details>
             <summary>Toon als tabel</summary>
             <table>
-              <thead><tr><th>Maand</th><th>Verkocht</th><th>Omzet</th><th>Winst</th></tr></thead>
+              <thead><tr><th>Maand</th><th>Omzet</th><th>Kosten</th><th>Winst</th></tr></thead>
               <tbody>${maandRegels.map((m) => `
-                <tr><td>${m.naam}</td><td>${m.aantal}</td><td>${formatEuro(m.omzet)}</td><td>${formatEuro(m.winst)}</td></tr>`).join('')}
+                <tr><td>${m.naam}</td><td>${formatEuro(m.omzet)}</td><td>${formatEuro(m.uitgaven)}</td><td>${formatEuro(m.winst)}</td></tr>`).join('')}
               </tbody>
             </table>
           </details>` : ''}
@@ -414,6 +484,7 @@ function renderOverzicht() {
     </section>`;
 
   telOp(document.getElementById('hero-bedrag'), o.winst);
+  koppelGrafieken();
 }
 
 function accountHtml() {
@@ -900,11 +971,21 @@ document.addEventListener('click', (e) => {
     return;
   }
 
+  const tabje = e.target.closest('[data-dia]');
+  if (tabje) {
+    const slider = document.getElementById('grafiek-slider');
+    slider.scrollTo({ left: Number(tabje.dataset.dia) * slider.clientWidth, behavior: minderBeweging.matches ? 'auto' : 'smooth' });
+    return;
+  }
+
   const kolom = e.target.closest('[data-maand]');
   if (kolom) {
+    const dia = kolom.closest('.grafiek-dia');
+    const info = dia.querySelector('.grafiek-info');
+    const aan = kolom.getAttribute('aria-pressed') !== 'true';
     const m = jaarOverzicht(staat.artikelen, staat.jaar, staat.kosten).maanden[kolom.dataset.maand];
-    document.querySelectorAll('[data-maand]').forEach((k) => k.setAttribute('aria-pressed', k === kolom));
-    document.getElementById('grafiek-info').innerHTML = `<strong>${m.naam}: ${formatEuro(m.winst)}</strong> winst, ${m.aantal} verkocht`;
+    dia.querySelectorAll('[data-maand]').forEach((k) => k.setAttribute('aria-pressed', aan && k === kolom));
+    info.innerHTML = aan ? maandInfo(dia.dataset.veld, m) : info.dataset.standaard;
     return;
   }
 
@@ -921,6 +1002,11 @@ view.addEventListener('input', (e) => {
 
 view.addEventListener('change', (e) => {
   if (e.target.name === 'thema') kiesThema(e.target.value);
+  if (e.target.id === 'sortering') {
+    staat.sortering = e.target.value;
+    bewaarVoorkeur('winstje-sortering', staat.sortering);
+    renderLijst();
+  }
 });
 
 sheet.addEventListener('click', (e) => {
