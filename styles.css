@@ -310,6 +310,7 @@ h1, h2, h3, p { margin: 0; }
 .totaal-rij span { min-width: 0; }
 .totaal-rij small { display: block; color: var(--tekst-2); font-size: 13px; }
 .totaal-rij strong { flex: none; font: 600 19px/1.2 var(--kop); font-variant-numeric: tabular-nums; }
+.totaal-rij.stand strong { font-size: 21px; }
 .stip { display: inline-block; width: 10px; height: 10px; margin-right: 7px; border-radius: 50%; }
 
 .kosten-totaal { display: flex; justify-content: space-between; align-items: baseline; gap: 12px; margin-bottom: 4px; }

@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import {
-  parseEuro, euroInvoer, winst, vandaagIso, dagenTussen, beschikbareJaren, jaarOverzicht, totaalOverzicht, blijvenLiggen, naarCsv, sorteer,
+  parseEuro, euroInvoer, winst, vandaagIso, dagenTussen, beschikbareJaren, jaarOverzicht, totaalOverzicht, blijvenLiggen, naarCsv, sorteer, rendement, formatProcent,
 } from '../logic.js';
 
 test('parseEuro leest Nederlandse en gewone notaties', () => {
@@ -105,10 +105,36 @@ test('naarCsv zet extra kosten erbij met negatieve winst', () => {
 });
 
 test('totaalOverzicht telt alle jaren samen', () => {
-  assert.deepEqual(totaalOverzicht(data), {
-    ingekocht: 2700, opbrengst: 3800, verkocht: 3, voorraadWaarde: 900, voorraadAantal: 2, zelfWaarde: 0, zelfAantal: 0,
-  });
-  assert.equal(totaalOverzicht([]).ingekocht, 0);
+  const t = totaalOverzicht(data, [{ soort: 'kosten', naam: 'Dozen', bedrag: 200, datum: '2026-01-20' }]);
+  assert.equal(t.ingekocht, 2700);
+  assert.equal(t.opbrengst, 3800);
+  assert.equal(t.verkocht, 3);
+  assert.equal(t.voorraadWaarde, 900);
+  assert.equal(t.voorraadAantal, 2);
+  assert.equal(t.overigeKosten, 300);
+  assert.equal(t.stand, 3800 - 2700 - 300);
+  // Verkocht: inkoop 1800 plus kosten 100 = 1900 kosten, 3800 opbrengst, dus 100% winst.
+  assert.equal(t.gemiddeldRendement, 1);
+  assert.equal(t.verwachteWinst, 900);
+  const leeg = totaalOverzicht([]);
+  assert.equal(leeg.stand, 0);
+  assert.equal(leeg.gemiddeldRendement, null);
+  assert.equal(leeg.verwachteWinst, null);
+});
+
+test('rendement is winst ten opzichte van de kosten', () => {
+  assert.equal(rendement(2500, 1000), 1.5);
+  assert.equal(rendement(500, 1000), -0.5);
+  assert.equal(rendement(500, 0), null);
+  assert.equal(formatProcent(1.5).replace(/\s/g, ''), '+150%');
+  assert.equal(formatProcent(-0.5).replace(/\s/g, ''), '-50%');
+  assert.equal(formatProcent(null), '–');
+});
+
+test('jaarOverzicht geeft het rendement over de verkopen van dat jaar', () => {
+  // 2026: omzet 2900, kosten 1000 + 100 + 500 = 1600
+  assert.equal(jaarOverzicht(data, 2026).rendement, (2900 - 1600) / 1600);
+  assert.equal(jaarOverzicht([], 2026).rendement, null);
 });
 
 test('zelf houden telt niet als voorraad, verkoop of winst', () => {

@@ -1,7 +1,7 @@
 import { alleArtikelen, alleKosten, bewaarArtikel, verwijderArtikel, vervangAlles } from './db.js';
 import { isGekoppeld, huidigAccount, inloggen, registreren, uitloggen, syncNu, foutTekst } from './account.js';
 import {
-  STATUSSEN, parseEuro, formatEuro, euroInvoer, winst, vandaagIso, dagenTussen, formatDatum,
+  STATUSSEN, parseEuro, formatEuro, formatProcent, euroInvoer, winst, vandaagIso, dagenTussen, formatDatum,
   beschikbareJaren, jaarOverzicht, totaalOverzicht, blijvenLiggen, naarCsv, SORTERINGEN, sorteer,
 } from './logic.js';
 
@@ -369,7 +369,7 @@ function meterHtml(label, waarde, tekst, grens) {
 }
 
 function totaalHtml() {
-  const t = totaalOverzicht(staat.artikelen);
+  const t = totaalOverzicht(staat.artikelen, staat.kosten);
   const samen = t.voorraadWaarde + t.opbrengst;
   return `
     <h2 class="subkop">Alle jaren samen</h2>
@@ -396,7 +396,32 @@ function totaalHtml() {
         <span>Totale inkoopkosten<small>Alles wat je ooit hebt ingekocht</small></span>
         <strong>${formatEuro(t.ingekocht)}</strong>
       </div>
-    </div>`;
+      <div class="totaal-rij">
+        <span>Overige kosten<small>Verzendkosten en extra kosten</small></span>
+        <strong>${formatEuro(t.overigeKosten)}</strong>
+      </div>
+      <div class="totaal-rij stand">
+        <span>Huidige stand<small>Opbrengst min alle kosten</small></span>
+        <strong class="${klasseBedrag(t.stand)}">${metTeken(t.stand)}</strong>
+      </div>
+    </div>
+
+    <h2 class="subkop">Verwachte winst</h2>
+    <div class="paneel">${verwachtHtml(t)}</div>`;
+}
+
+function verwachtHtml(t) {
+  if (t.gemiddeldRendement === null) {
+    return '<p class="klein">Zodra je iets hebt verkocht, rekent Winstje hier uit wat je voorraad nog kan opleveren.</p>';
+  }
+  if (!t.voorraadAantal) {
+    return `<p class="klein">Je hebt niets meer in voorraad. Je gemiddelde winst op verkochte artikelen is ${formatProcent(t.gemiddeldRendement)}.</p>`;
+  }
+  return `
+    <div class="kosten-totaal"><span>Nog te verdienen</span><strong class="${klasseBedrag(t.verwachteWinst)}">${metTeken(t.verwachteWinst)}</strong></div>
+    <p class="klein">Als je de ${aantalArtikelen(t.voorraadAantal)} in voorraad (${formatEuro(t.voorraadWaarde)} ingekocht)
+      verkoopt met je gemiddelde winst van ${formatProcent(t.gemiddeldRendement)}, levert dat samen
+      ${formatEuro(t.voorraadWaarde + t.verwachteWinst)} op.</p>`;
 }
 
 function renderOverzicht() {
@@ -422,6 +447,7 @@ function renderOverzicht() {
         <div class="hero-rij">
           <div><strong>${formatEuro(o.omzet)}</strong><small>omzet</small></div>
           <div><strong>${o.verkocht}</strong><small>verkocht</small></div>
+          <div><strong>${formatProcent(o.rendement)}</strong><small>rendement</small></div>
         </div>
       </div>
       <div class="tegels">
@@ -541,7 +567,7 @@ function veldHtml(naam, label, waarde = '', extra = '') {
 }
 
 function openFormulier(artikel) {
-  const a = artikel ?? { status: 'voorraad', inkoopdatum: vandaagIso() };
+  const a = artikel ?? { status: 'gekocht', inkoopdatum: vandaagIso() };
   staat.concept = { id: artikel?.id ?? null, foto: a.foto ?? null };
   const eigenWaarden = (veld) => staat.artikelen.map((x) => x[veld]).filter(Boolean);
   const opties = (lijst) => [...new Set(lijst)].map((o) => `<option value="${esc(o)}"></option>`).join('');

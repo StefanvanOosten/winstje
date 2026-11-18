@@ -25,6 +25,18 @@ export function parseEuro(tekst) {
   return Math.round(parseFloat(t) * 100);
 }
 
+const procentFormat = new Intl.NumberFormat('nl-NL', { style: 'percent', maximumFractionDigits: 0, signDisplay: 'exceptZero' });
+
+/** 1,5 wordt "+150%"; null wordt een streepje. */
+export function formatProcent(fractie) {
+  return fractie == null ? '–' : procentFormat.format(fractie);
+}
+
+/** Winst als deel van wat het kostte: 10 kosten en 25 opbrengst is 1,5 (150%). Zonder kosten null. */
+export function rendement(opbrengst, kosten) {
+  return kosten > 0 ? (opbrengst - kosten) / kosten : null;
+}
+
 export function formatEuro(centen) {
   return euroFormat.format((centen ?? 0) / 100);
 }
@@ -112,6 +124,8 @@ export function jaarOverzicht(artikelen, jaar, extraKosten = []) {
     maand.uitgaven += k.bedrag;
   }
   uitkomst.uitgaven = uitkomst.ingekocht + uitkomst.kosten + uitkomst.extraKosten;
+  // Kosten van wat verkocht is: inkoop en kosten van die artikelen plus de extra kosten van dit jaar.
+  uitkomst.rendement = rendement(uitkomst.omzet, uitkomst.omzet - uitkomst.winst);
   return uitkomst;
 }
 
@@ -146,14 +160,23 @@ function winstVolgorde(x, y, richting) {
   return (wx - wy) * richting;
 }
 
-/** Stand over alle jaren samen. Voorraad telt tegen inkoopprijs, verkocht tegen verkoopprijs. */
-export function totaalOverzicht(artikelen) {
-  const uitkomst = { ingekocht: 0, opbrengst: 0, verkocht: 0, voorraadWaarde: 0, voorraadAantal: 0, zelfWaarde: 0, zelfAantal: 0 };
+/**
+ * Stand over alle jaren samen. Voorraad telt tegen inkoopprijs, verkocht tegen verkoopprijs.
+ * `stand` is alle opbrengst min alle kosten, dus ook min de inkoop van wat nog niet verkocht is.
+ * De verwachte winst rekent het gemiddelde rendement op verkochte artikelen door op de voorraad.
+ */
+export function totaalOverzicht(artikelen, extraKosten = []) {
+  const uitkomst = {
+    ingekocht: 0, opbrengst: 0, verkocht: 0, voorraadWaarde: 0, voorraadAantal: 0, zelfWaarde: 0, zelfAantal: 0,
+    overigeKosten: 0, kostenVerkocht: 0,
+  };
   for (const a of artikelen) {
     uitkomst.ingekocht += a.inkoopprijs ?? 0;
     if (a.status === 'verkocht') {
       uitkomst.opbrengst += a.verkoopprijs ?? 0;
       uitkomst.verkocht += 1;
+      uitkomst.overigeKosten += a.kosten ?? 0;
+      uitkomst.kostenVerkocht += (a.inkoopprijs ?? 0) + (a.kosten ?? 0);
     } else if (a.status === 'zelf_houden') {
       uitkomst.zelfWaarde += a.inkoopprijs ?? 0;
       uitkomst.zelfAantal += 1;
@@ -162,6 +185,13 @@ export function totaalOverzicht(artikelen) {
       uitkomst.voorraadAantal += 1;
     }
   }
+  for (const k of extraKosten) uitkomst.overigeKosten += k.bedrag ?? 0;
+  uitkomst.stand = uitkomst.opbrengst - uitkomst.ingekocht - uitkomst.overigeKosten;
+  // Gewogen gemiddelde: dure verkopen tellen zwaarder mee dan een gratis gekregen artikel.
+  uitkomst.gemiddeldRendement = rendement(uitkomst.opbrengst, uitkomst.kostenVerkocht);
+  uitkomst.verwachteWinst = uitkomst.gemiddeldRendement === null
+    ? null
+    : Math.round(uitkomst.voorraadWaarde * uitkomst.gemiddeldRendement);
   return uitkomst;
 }
 
