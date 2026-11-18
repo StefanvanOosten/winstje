@@ -87,7 +87,7 @@ try {
     const j = new Date().getFullYear();
     const svg = (b,h,c) => 'data:image/svg+xml,'+encodeURIComponent('<svg xmlns="http://www.w3.org/2000/svg" width="'+b+'" height="'+h+'"><rect width="'+b+'" height="'+h+'" fill="#111"/><rect y="'+h*.3+'" width="'+b+'" height="'+h*.4+'" fill="'+c+'"/></svg>');
     const basis = { categorie:'', merk:'', maat:'', inkoopbron:'', notitie:'', foto:null };
-    await db.bewaarArtikel({ ...basis, id:'a1', aangemaakt:'2026-01-01', naam:'Roze vest', status:'verkocht', inkoopprijs:500, inkoopdatum:j+'-01-02', verkoopprijs:2000, verkoopdatum:j+'-02-03', kosten:0, foto:svg(415,900,'#e8467c') });
+    await db.bewaarArtikel({ ...basis, id:'a1', aangemaakt:'2026-01-01', naam:'Roze vest', merk:'Zara', status:'verkocht', inkoopprijs:500, inkoopdatum:j+'-01-02', verkoopprijs:2000, verkoopdatum:j+'-02-03', kosten:0, foto:svg(415,900,'#e8467c') });
     await db.bewaarArtikel({ ...basis, id:'a2', aangemaakt:'2026-01-02', naam:'Donkerblauwe jas', status:'voorraad', inkoopprijs:1500, inkoopdatum:j+'-01-05' });
     await db.bewaarArtikel({ ...basis, id:'a3', aangemaakt:'2026-01-03', naam:'Enkelgewichten', status:'verkocht', inkoopprijs:500, inkoopdatum:j+'-01-02', verkoopprijs:1000, verkoopdatum:j+'-02-10', kosten:0 });
     await db.bewaarArtikel({ ...basis, id:'a4', aangemaakt:'2026-01-04', naam:'Western blouse', status:'te_koop', inkoopprijs:500, inkoopdatum:j+'-01-06' });
@@ -99,11 +99,20 @@ try {
   await klik('.fab');
   await wacht(400);
   check('nieuw artikel start op Gekocht', await ev(`document.getElementById('st-gekocht').checked`));
+  check('geen merkveld in het formulier', await ev(`!document.querySelector('#formulier [name=merk]')`));
+  await foto('formulier.png');
   await zet('#formulier [name=naam]', 'Onderweg jas');
   await zet('#formulier [name=inkoopprijs]', '10,00');
   await ev(`document.getElementById('formulier').requestSubmit()`);
   await wacht(900);
   check('gekocht artikel staat in de lijst', (await tekst('.kaart')).includes('Gekocht'));
+
+  // Een eerder ingevuld merk blijft bewaard bij opnieuw opslaan.
+  await klik('[data-id="a1"]');
+  await wacht(400);
+  await ev(`document.getElementById('formulier').requestSubmit()`);
+  await wacht(900);
+  check('bestaand merk blijft bewaard', await ev(`(async()=>{const db=await import('./db.js');return (await db.alleArtikelen()).find(a=>a.id==='a1').merk})()`) === 'Zara');
 
   // Sorteren en raster
   await zet('#sortering', 'prijs_hoog');

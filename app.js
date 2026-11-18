@@ -218,7 +218,7 @@ function renderArtikelen() {
         </div>
       </div>
       <div class="zoekrij">
-        <input class="zoek" id="zoek" type="search" placeholder="Zoek op naam of merk" aria-label="Zoeken op naam, merk of categorie" value="${esc(staat.zoek)}">
+        <input class="zoek" id="zoek" type="search" placeholder="Zoek op naam" aria-label="Zoeken op naam, merk of categorie" value="${esc(staat.zoek)}">
         <div class="wissel" role="group" aria-label="Weergave van de artikelen">
           <button data-weergave="lijst" aria-label="Lijst" aria-pressed="${staat.weergave === 'lijst'}">
             <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 6h16M4 12h16M4 18h16"/></svg>
@@ -588,12 +588,9 @@ function openFormulier(artikel) {
         ${veldHtml('naam', 'Naam', a.naam, 'autocomplete="off" required')}
         <div class="twee">
           ${veldHtml('categorie', 'Categorie', a.categorie, 'list="lijst-categorie" autocomplete="off"')}
-          ${veldHtml('merk', 'Merk', a.merk, 'autocomplete="off"')}
-        </div>
-        <div class="twee">
           ${veldHtml('maat', 'Maat', a.maat, 'autocomplete="off"')}
-          ${veldHtml('inkoopbron', 'Gekocht bij', a.inkoopbron, 'list="lijst-bron" autocomplete="off"')}
         </div>
+        ${veldHtml('inkoopbron', 'Gekocht bij', a.inkoopbron, 'list="lijst-bron" autocomplete="off"')}
         <div class="twee">
           ${veldHtml('inkoopprijs', 'Inkoopprijs (€)', euroInvoer(a.inkoopprijs), 'inputmode="decimal" autocomplete="off" placeholder="0,00"')}
           ${veldHtml('inkoopdatum', 'Inkoopdatum', a.inkoopdatum, 'type="date"')}
@@ -798,7 +795,8 @@ async function bewaarFormulier(form) {
     aangemaakt: bestaand?.aangemaakt ?? new Date().toISOString(),
     naam,
     categorie: form.categorie.value.trim(),
-    merk: form.merk.value.trim(),
+    // Merk staat niet meer in het formulier; een eerder ingevuld merk blijft bewaard.
+    merk: bestaand?.merk ?? '',
     maat: form.maat.value.trim(),
     inkoopbron: form.inkoopbron.value.trim(),
     inkoopprijs,
